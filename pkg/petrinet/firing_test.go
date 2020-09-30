@@ -10,15 +10,16 @@ func TestEnable1(t *testing.T) {
 	p1 := net.NewPlace("p1", 10)
 	p2 := net.NewPlace("p2", 10)
 	p3 := net.NewPlace("p3", 10)
-	t1 := net.NewTrans("t1", 0, true)
+	t1 := net.NewExpTrans("t1", 0, true, 1.0)
 	net.NewInArc(p1, t1, 1)
 	net.NewInArc(p2, t1, 1)
 	net.NewOutArc(t1, p3, 1)
-	net.Indexing()
-	mark := NewMark([]markInt{1,1,1})
-	fmt.Println(IsEnabled(net, t1, mark))
-	if IsEnabled(net, t1, mark) != ENABLE {
-	    t.Errorf("fail")
+	net.Finalize()
+	mark := newMark([]MarkInt{1, 1, 1})
+	// fmt.Println(net)
+	// fmt.Println(t1.IsEnabled(net, mark))
+	if t1.IsEnabled(net, mark.toSlice()) != ENABLE {
+		t.Errorf("fail")
 	}
 }
 
@@ -27,17 +28,17 @@ func TestEnable2(t *testing.T) {
 	p1 := net.NewPlace("p1", 10)
 	p2 := net.NewPlace("p2", 10)
 	p3 := net.NewPlace("p3", 10)
-	t1 := net.NewTrans("t1", 0, true)
+	t1 := net.NewImmTrans("t1", 0, true, 1.0)
 	net.NewInArc(p1, t1, 1)
 	net.NewInArc(p2, t1, 1)
 	net.NewOutArc(t1, p3, 1)
-	net.Indexing()
-	mark := NewMark([]markInt{1,1,0})
-	fmt.Println(IsEnabled(net, t1, mark))
-	if IsEnabled(net, t1, mark) != ENABLE {
-	    t.Errorf("fail")
+	net.Finalize()
+	mark := newMark([]MarkInt{1, 1, 0})
+	// fmt.Println(t1.IsEnabled(net, mark))
+	if t1.IsEnabled(net, mark.toSlice()) != ENABLE {
+		t.Errorf("fail")
 	}
-	fmt.Println(toslice(DoFiring(net, t1, mark)))
+	// fmt.Println(t1.doFiring(net, mark).toslice())
 }
 
 func TestEnable3(t *testing.T) {
@@ -45,33 +46,36 @@ func TestEnable3(t *testing.T) {
 	p1 := net.NewPlace("p1", 10)
 	p2 := net.NewPlace("p2", 10)
 	p3 := net.NewPlace("p3", 10)
-	t1 := net.NewTrans("t1", 0, true)
+	t1 := net.NewImmTrans("t1", 0, true, 1.0)
 	net.NewInArc(p1, t1, 1)
 	net.NewInArc(p2, t1, 1)
 	net.NewOutArc(t1, p3, 1)
-	net.Indexing()
-	mark := NewMark([]markInt{1,0,0})
-	fmt.Println(IsEnabled(net, t1, mark))
-	if IsEnabled(net, t1, mark) != DISABLE {
-	    t.Errorf("fail")
+	net.Finalize()
+	mark := newMark([]MarkInt{1, 0, 0})
+	// fmt.Println(t1.IsEnabled(net, mark))
+	if t1.IsEnabled(net, mark.toSlice()) != DISABLE {
+		t.Errorf("fail")
 	}
 }
 
-func TestEnable4(t *testing.T) {
+func TestEnabe4(t *testing.T) {
 	net := NewNet()
 	p1 := net.NewPlace("p1", 10)
 	p2 := net.NewPlace("p2", 10)
 	p3 := net.NewPlace("p3", 10)
-	t1 := net.NewTrans("t1", 0, true)
-	a1 := net.NewInArc(p1, t1, 1)
+	t1 := net.NewImmTrans("t1", 0, true, 1.0)
+	net.NewInArc(p1, t1, 1)
 	net.NewInArc(p2, t1, 1)
 	net.NewOutArc(t1, p3, 1)
-	net.Indexing()
-	net.infunc[a1] = func(m *Mark) markInt { return 10 }
-	mark := NewMark([]markInt{10,1,0})
-	fmt.Println(IsEnabled(net, t1, mark))
-	if IsEnabled(net, t1, mark) != ENABLE {
-	    t.Errorf("fail")
+	bb := true
+	net.SetGuard(t1, "t1", func([]MarkInt) bool {
+		fmt.Println("guard")
+		return bb
+	})
+	net.Finalize()
+	mark := newMark([]MarkInt{1, 1, 1})
+	bb = false
+	if t1.IsEnabled(net, mark.toSlice()) != DISABLE {
+		t.Errorf("fail")
 	}
-	fmt.Println(toslice(DoFiring(net, t1, mark)))
 }
