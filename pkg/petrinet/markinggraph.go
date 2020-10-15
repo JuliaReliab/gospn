@@ -370,9 +370,11 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 			j:   mg.markToInt[lset.dest],
 			val: lset.tr.getValue(mg.net, lset.src),
 		}
+		// log.Print("add ", e)
 		elems = append(elems, e)
 		sum[e.i] += e.val
 	}
+	// log.Print("before ", elems)
 	sort.Slice(elems, func(i, j int) bool {
 		if elems[i].j == elems[j].j {
 			return elems[i].i < elems[j].i
@@ -380,20 +382,29 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 			return elems[i].j < elems[j].j
 		}
 	})
+	// log.Print("after ", elems)
 	colptr := make([]int, n+1)
 	rowind := make([]int, len(elems))
 	value := make([]float64, len(elems))
-	c := 0
-	colptr[c] = 0
-	for z, e := range elems {
-		for c != e.j {
-			colptr[c+1] = z
-			c += 1
+	z := 0
+	j := 0
+	colptr[j] = z
+	for _, e := range elems {
+		if j != e.j {
+			for u := j + 1; u <= e.j; u++ {
+				colptr[u] = z
+			}
+			j = e.j
 		}
 		rowind[z] = e.i
 		value[z] = e.val
+		z += 1
 	}
-	colptr[n] = len(elems)
+	for u := j + 1; u <= n; u++ {
+		colptr[u] = z
+	}
+	// log.Print(m, " ", n, " ", gtr.src, gtr.dest, gtr.transtype, sum)
+	// log.Print(m, " ", n, " ", rowind, colptr, value)
 	return &CSC{
 		m:      m,
 		n:      n,
@@ -405,9 +416,13 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 }
 
 func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC, map[GroupTrans]*CSC) {
+	// type gengroup struct {
+	// 	g  *Group
+	// 	tr *Trans
+	// }
 	immsums := make(map[*Group][]float64)
 	expsums := make(map[*Group][]float64)
-	gensums := make(map[*Group][]float64)
+	// gensums := make(map[gengroup][]float64)
 
 	immmats := make(map[GroupTrans]*CSC)
 	expmats := make(map[GroupTrans]*CSC)
@@ -436,15 +451,19 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 				expsums[src] = sum
 			}
 		case TransGEN:
-			mat, sum := mg.getTransMatrix(gtr)
+			mat, _ := mg.getTransMatrix(gtr)
 			genmats[gtr] = mat
-			if _, ok := gensums[src]; ok {
-				for i, s := range sum {
-					gensums[src][i] += s
-				}
-			} else {
-				gensums[src] = sum
-			}
+			// geng := gengroup{
+			// 	g:  src,
+			// 	tr: gtr.gentrans,
+			// }
+			// if _, ok := gensums[geng]; ok {
+			// 	for i, s := range sum {
+			// 		gensums[geng][i] += s
+			// 	}
+			// } else {
+			// 	gensums[geng] = sum
+			// }
 		default:
 			log.Panic("Unknown transtype")
 		}
@@ -484,12 +503,16 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 			}
 		}
 	}
-	for gtr, mat := range genmats {
-		sum := gensums[gtr.src]
-		for i := 0; i < mat.nnz; i++ {
-			mat.value[i] /= sum[mat.rowind[i]]
-		}
-	}
+	// for gtr, mat := range genmats {
+	// 	geng := gengroup{
+	// 		g:  gtr.src,
+	// 		tr: gtr.gentrans,
+	// 	}
+	// 	sum := gensums[geng]
+	// 	for i := 0; i < mat.nnz; i++ {
+	// 		mat.value[i] /= sum[mat.rowind[i]]
+	// 	}
+	// }
 	return expmats, immmats, genmats
 }
 
