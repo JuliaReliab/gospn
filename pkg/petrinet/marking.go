@@ -1,66 +1,66 @@
 package petrinet
 
 import (
-	"reflect"
+	"strconv"
+	"strings"
 )
 
-type markInt uint
-
-func toarray(x []markInt) reflect.Value {
-	n := len(x)
-	rt := reflect.ArrayOf(n, reflect.TypeOf(x[0]))
-	rx := reflect.New(rt).Elem()
-	for i, v := range x {
-		rx.Index(i).Set(reflect.ValueOf(v))
-	}
-	return rx
-}
-
-func toslice(x *Mark) []markInt {
-	y := make([]markInt, x.n, x.n)
-	for i,_ := range y {
-		y[i] = x.mark.Index(i).Interface().(markInt)
-	}
-	return y
-}
+type MarkInt int
 
 type Mark struct {
-	n int
-	mark reflect.Value
+	n         int
+	markSlice []MarkInt
 }
 
-func NewMark(mark []markInt) *Mark {
+func (x *Mark) toSlice() []MarkInt {
+	return x.markSlice
+}
+
+func newMark(mark []MarkInt) *Mark {
 	return &Mark{
-		n: len(mark),
-		mark: toarray(mark),
+		n:         len(mark),
+		markSlice: mark,
 	}
 }
 
-func (m *Mark) Get(i int) markInt {
-	return m.mark.Index(i).Interface().(markInt)
+func (m *Mark) String() string {
+	result := make([]string, m.n)
+	for i := 0; i < m.n; i++ {
+		result[i] = strconv.Itoa(int(m.markSlice[i]))
+	}
+	return "[" + strings.Join(result, ",") + "]"
 }
 
-type MarkMap struct {
-	amap reflect.Value
+// MarkGenerator
+
+type MarkGeneratorInterface interface {
+	genMark([]MarkInt) *Mark
 }
 
-func NewMarkMap(n int) *MarkMap {
-	rkey := reflect.ArrayOf(n, reflect.TypeOf(markInt(0)))
-	rval := reflect.TypeOf(NewMark(make([]markInt, n)))
-	return &MarkMap{
-		amap: reflect.MakeMap(reflect.MapOf(rkey, rval)),
+type MarkGenerator struct {
+	key  []byte
+	data map[string]*Mark
+}
+
+func NewMarkGenerator(n int) *MarkGenerator {
+	return &MarkGenerator{
+		key:  make([]byte, 0, 5*n), // estimate 5 characters for one place
+		data: make(map[string]*Mark),
 	}
 }
 
-func (m *MarkMap) Set(key *Mark, val *Mark) {
-	m.amap.SetMapIndex(key.mark, reflect.ValueOf(val))
-}
-
-func (m *MarkMap) Get(key *Mark) *Mark {
-	result := m.amap.MapIndex(key.mark)
-	if result.IsValid() {
-		return result.Interface().(*Mark)
+func (g *MarkGenerator) genMark(m []MarkInt) *Mark {
+	g.key = g.key[:0]
+	for _, x := range m {
+		g.key = append(g.key, strconv.Itoa(int(x))...)
+		g.key = append(g.key, ',')
+	}
+	key := string(g.key)
+	if mark, ok := g.data[key]; ok {
+		return mark
 	} else {
-		return nil
+		newmark := newMark(m)
+		g.data[key] = newmark
+		return newmark
 	}
 }
