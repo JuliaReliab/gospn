@@ -2,7 +2,6 @@
 
 - Testing for Update
 - MC simulation: SFMT? Mernenne?
-- Makefile
 
 ### Enhancement
 

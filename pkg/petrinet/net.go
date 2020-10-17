@@ -513,9 +513,9 @@ func (b *pndot) drawTrans(net *Net, transtype map[*Trans]int, tr *Trans) {
 	}
 	switch transtype[tr] {
 	case 1: // IMM
-		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2];\n", tr, tr.makeLabel(net))
-	case 2: // EXP
 		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.02, style=\"filled,dashed\"];\n", tr, tr.makeLabel(net))
+	case 2: // EXP
+		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2];\n", tr, tr.makeLabel(net))
 	case 3: // GEN
 		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2, style=\"filled\"];\n", tr, tr.makeLabel(net))
 	default:
