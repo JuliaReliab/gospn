@@ -416,13 +416,9 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 }
 
 func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC, map[GroupTrans]*CSC) {
-	// type gengroup struct {
-	// 	g  *Group
-	// 	tr *Trans
-	// }
 	immsums := make(map[*Group][]float64)
 	expsums := make(map[*Group][]float64)
-	// gensums := make(map[gengroup][]float64)
+	expgengroups := make(map[*Group]struct{})
 
 	immmats := make(map[GroupTrans]*CSC)
 	expmats := make(map[GroupTrans]*CSC)
@@ -441,6 +437,7 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 				immsums[src] = sum
 			}
 		case TransEXP:
+			expgengroups[src] = struct{}{}
 			mat, sum := mg.getTransMatrix(gtr)
 			expmats[gtr] = mat
 			if _, ok := expsums[src]; ok {
@@ -451,24 +448,15 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 				expsums[src] = sum
 			}
 		case TransGEN:
+			expgengroups[src] = struct{}{}
 			mat, _ := mg.getTransMatrix(gtr)
 			genmats[gtr] = mat
-			// geng := gengroup{
-			// 	g:  src,
-			// 	tr: gtr.gentrans,
-			// }
-			// if _, ok := gensums[geng]; ok {
-			// 	for i, s := range sum {
-			// 		gensums[geng][i] += s
-			// 	}
-			// } else {
-			// 	gensums[geng] = sum
-			// }
 		default:
 			log.Panic("Unknown transtype")
 		}
 	}
-	for g, _ := range expsums {
+	// group Gx should have GxGxE even if there is no EXP trans
+	for g, _ := range expgengroups {
 		gtr := GroupTrans{
 			src:       g,
 			dest:      g,
@@ -476,13 +464,19 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 			gentrans:  nil,
 		}
 		if _, ok := expmats[gtr]; ok == false {
-			mat, _ := mg.getTransMatrix(gtr)
+			mat, sum := mg.getTransMatrix(gtr)
 			expmats[gtr] = mat
+			if _, ok := expsums[g]; ok == false {
+				expsums[g] = sum
+			}
 			mg.grouplinks = append(mg.grouplinks, gtr)
 		}
 	}
 
-	// diag
+	// normalize:
+	//   immmat -> sum of row becomes 1
+	//   expmat -> put diag elements
+	//   genmat -> no need because genmat has only one element 1 for each row
 	for gtr, mat := range immmats {
 		sum := immsums[gtr.src]
 		for i := 0; i < mat.nnz; i++ {
@@ -503,16 +497,6 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 			}
 		}
 	}
-	// for gtr, mat := range genmats {
-	// 	geng := gengroup{
-	// 		g:  gtr.src,
-	// 		tr: gtr.gentrans,
-	// 	}
-	// 	sum := gensums[geng]
-	// 	for i := 0; i < mat.nnz; i++ {
-	// 		mat.value[i] /= sum[mat.rowind[i]]
-	// 	}
-	// }
 	return expmats, immmats, genmats
 }
 

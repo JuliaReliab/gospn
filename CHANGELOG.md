@@ -1,7 +1,7 @@
 # gospn 0.9.1
 
-- bugfix
-    - Change the styple of IMM and EXP trans in view mode
+- bugfix: the styple of IMM and EXP trans in view mode
+- bugfix: output GxGxE for all EXP/GEN groups even if there is no transitions
 
 # gospn 0.9.0
 
