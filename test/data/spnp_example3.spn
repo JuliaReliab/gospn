@@ -13,12 +13,12 @@ iarc buf to trserv
 
 rate.serv = ifelse(#buf < m, #buf*mu, m*mu)
 
-qlength = #buf
-util = ifelse(?trserv, 1, 0)
-tput = ifelse(?trserv, rate.serv, 0)
-probrej = ifelse(#buf == b, 1, 0)
-probempty = ifelse(#buf == 0, 1, 0)
-probhalffull = ifelse(#buf == b div 2, 1, 0)
+reward qlength #buf
+reward util ifelse(?trserv, 1, 0)
+reward tput ifelse(?trserv, rate.serv, 0)
+reward probrej ifelse(#buf == b, 1, 0)
+reward probempty ifelse(#buf == 0, 1, 0)
+reward probhalffull ifelse(#buf == b div 2, 1, 0)
 
 // buffer size
 b = 50

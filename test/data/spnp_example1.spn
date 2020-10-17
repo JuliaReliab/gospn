@@ -9,11 +9,11 @@ place p2
 place p3
 place p4
 
-exp t0 (rate = 1)
-exp t1 (rate = 3)
-exp t2 (rate = 7)
-exp t3 (rate = 9)
-exp t4 (rate = 5)
+exp t0 (rate = t0.rate)
+exp t1 (rate = t1.rate)
+exp t2 (rate = t2.rate)
+exp t3 (rate = t3.rate)
+exp t4 (rate = t4.rate)
 
 iarc p0 to t0
 iarc p1 to t1
@@ -29,8 +29,14 @@ oarc t2 to p4
 oarc t3 to p1
 oarc t4 to p0
 
-ef0 = #p0
-ef1 = #p1
-ef2 = ifelse(?t2, t2.rate, 0)
-ef3 = ifelse(?t3, t3.rate, 0)
-eff = ifelse(?t1, t1.rate, 0) * 1.8 + #p3 * 0.7
+t0.rate = 1
+t1.rate = 3
+t2.rate = 7
+t3.rate = 9
+t4.rate = 5
+
+reward ef0 #p0
+reward ef1 #p1
+reward ef2 ifelse(?t2, t2.rate, 0)
+reward ef3 ifelse(?t3, t3.rate, 0)
+reward eff ifelse(?t1, t1.rate, 0) * 1.8 + #p3 * 0.7

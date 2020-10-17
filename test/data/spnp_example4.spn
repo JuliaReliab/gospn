@@ -40,11 +40,11 @@ apfl = #procup
 amfl = #memup
 asfl = #swup
 
-reliab = ifelse(#procup >= k && #memup >= k && #swup == 1, 1, 0)
+reward reliab ifelse(#procup >= k && #memup >= k && #swup == 1, 1, 0)
 
 l = min(#procup, #memup)
 m = max(#procup, #memup)
 temp = pow(1 - (1/m), l)
-reward_rate = ifelse(#procup >= k && #memup >=k && #swup == 1, m * (1-temp), 0)
+reward reward_rate ifelse(#procup >= k && #memup >=k && #swup == 1, m * (1-temp), 0)
 
 k = 10

@@ -16,11 +16,11 @@ place Phdet
 imm Threjt (guard = ghtrig)
 imm Thfprejt (guard = ghtrig)
 
-exp Thfp
-exp Thfail
-exp Threj
-exp Threpair
-exp Thdet
+exp Thfp (rate = Thfp.rate)
+exp Thfail (rate = Thfai.rate)
+exp Threj (rate = Threj.rate)
+exp Threpair (rate = Threpair.rate)
+exp Thdet (rate = Thdet.rate)
 
 iarc Phup to Thfp
 iarc Phfp to Thfail
@@ -76,14 +76,14 @@ imm Tvdw (guard = gvhdw)
 imm Tvfpdw (guard = gvhdw)
 imm Tvfppre (guard = gvhrej)
 
-exp Tvrej (guard = gvrej)
-exp Tvfail
-exp Tvdet (guard = gvhup)
-exp Tvrepair (guard = gvhup)
-exp Tvfp
-exp Tvrestart (guard = gvhup)
-exp Tvsd
-exp Tvfpsd
+exp Tvrej (guard = gvrej, rate = Tvrej.rate)
+exp Tvfail (rate = Tvfail.rate)
+exp Tvdet (guard = gvhup, rate = Tvdet.rate)
+exp Tvrepair (guard = gvhup, rate = Tvrepair.rate)
+exp Tvfp (rate = Tvfp.rate)
+exp Tvrestart (guard = gvhup, rate = Tvreset.rate)
+exp Tvsd (rate = Tvsd.rate)
+exp Tvfpsd (rate = Tvfpsd.rate)
 
 iarc Pvup to Tvrejt
 iarc Pvup to Tvpre

@@ -75,16 +75,15 @@ harc Er_stage2 to Er_in2
 
 // REWARD Functions
 
-
 ret_val1 = ifelse(#mmpp_2 != 0, lambda21, lambda22)
-Earrival = ifelse(#Er_token1 == 1, ret_val1 + r1 / mu1, ret_val1)
+reward Earrival ifelse(#Er_token1 == 1, ret_val1 + r1 / mu1, ret_val1)
 
 Qlen1 = #buf1 + (#Er_token1 + #Er_stage1) / r1
 Qlen2 = #buf2 + (#Er_token2 + #Er_stage2) / r1
 
 // ret_val = ifelse(#mmpp_2 != 0, lambda21, lambda22)
-ELR = ifelse(Qlen2 + e >= K2, ifelse(#Er_token1 == 1, ret_val + r1 / mu1, ret_val), 0)
-PFull = ifelse(Qlen2 + e >= K2, 1, 0)
+reward ELR ifelse(Qlen2 + e >= K2, ifelse(#Er_token1 == 1, ret_val + r1 / mu1, ret_val), 0)
+reward PFull ifelse(Qlen2 + e >= K2, 1, 0)
 
 // GUARD Functions
 gar2 = Qlen2 + e < K2

@@ -79,7 +79,7 @@ func cmdmark(args []string) {
 	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
 	tangible := flag.Bool("t", false, "Create a (semi) tangible marking")
 	markgraph := flag.String("m", "", "Output a dot file to draw the marking graph")
-	groupmarkgraph := flag.Bool("g", false, "Display a dot to draw the group marking graph")
+	groupmarkgraph := flag.String("g", "", "OUtput a dot file to draw the group marking graph")
 	flag.CommandLine.Parse(args)
 
 	var net *petrinet.Net
@@ -98,7 +98,7 @@ func cmdmark(args []string) {
 		}
 	}
 
-	fmt.Print("# Crate marking...")
+	fmt.Print("Create marking...")
 	var mg *petrinet.MarkingGraph
 	start := time.Now()
 	if *tangible {
@@ -108,7 +108,7 @@ func cmdmark(args []string) {
 	}
 	end := time.Now()
 	fmt.Println("done")
-	fmt.Printf("# computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
+	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
 	mg.Print()
 
 	expmat, immmat, genmat := mg.TransMatrix()
@@ -157,8 +157,21 @@ func cmdmark(args []string) {
 	matfile.ToBytes(matout.NewMATLABBuffer(writer, binary.LittleEndian))
 	writer.Flush()
 
+	if *groupmarkgraph != "" {
+		fmt.Print("Write group marking graph...")
+		file, err := os.Create(*groupmarkgraph)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+		writer := bufio.NewWriter(file)
+		mg.ToGroupMarkDot(writer)
+		writer.Flush()
+		fmt.Println("done")
+	}
+
 	if *markgraph != "" {
-		fmt.Print("# Write marking graph...")
+		fmt.Print("Write marking graph...")
 		file, err := os.Create(*markgraph)
 		if err != nil {
 			panic(err)
@@ -168,11 +181,5 @@ func cmdmark(args []string) {
 		mg.ToMarkDotWithLabel(writer)
 		writer.Flush()
 		fmt.Println("done")
-	}
-
-	if *groupmarkgraph {
-		writer := bufio.NewWriter(os.Stdout)
-		mg.ToGroupMarkDot(writer)
-		writer.Flush()
 	}
 }

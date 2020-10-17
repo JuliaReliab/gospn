@@ -637,30 +637,30 @@ func (mg *MarkingGraph) Print() {
 	for i < len(mg.groups) {
 		g := mg.groups[i]
 		if prevgv != g.gv {
-			fmt.Fprintf(writer, "# (%s)\n", g.gv.makeLabel(mg.net))
+			fmt.Fprintf(writer, "(%s)\n", g.gv.makeLabel(mg.net))
 			prevgv = g.gv
 		}
 		switch g.gtype {
 		case IMMGroup:
 			immstates += len(mg.groupToMark[g])
 			immnnz += nnz[g]
-			fmt.Fprintf(writer, "#   # of IMM states     (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
+			fmt.Fprintf(writer, "  # of IMM states     (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
 		case GENGroup:
 			genstates += len(mg.groupToMark[g])
 			gennnz += nnz[g]
-			fmt.Fprintf(writer, "#   # of EXP/GEN states (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
+			fmt.Fprintf(writer, "  # of EXP/GEN states (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
 		case ABSGroup:
 			absstates += len(mg.groupToMark[g])
 			absnnz += nnz[g]
-			fmt.Fprintf(writer, "#   # of ABS states     (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
+			fmt.Fprintf(writer, "  # of ABS states     (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
 		default:
 			log.Panic("Unknown grouptype")
 		}
 		i++
 	}
-	fmt.Printf("# # of total states         : %d (%d)\n", immstates+genstates+absstates, immnnz+gennnz+absnnz)
-	fmt.Printf("# # of total EXP/GEN states : %d (%d)\n", genstates, gennnz)
-	fmt.Printf("# # of total IMM states     : %d (%d)\n", immstates, immnnz)
-	fmt.Printf("# # of total ABS states     : %d (%d)\n", absstates, absnnz)
+	fmt.Printf("# of total states         : %d (%d)\n", immstates+genstates+absstates, immnnz+gennnz+absnnz)
+	fmt.Printf("# of total EXP/GEN states : %d (%d)\n", genstates, gennnz)
+	fmt.Printf("# of total IMM states     : %d (%d)\n", immstates, immnnz)
+	fmt.Printf("# of total ABS states     : %d (%d)\n", absstates, absnnz)
 	fmt.Println(writer.String())
 }
