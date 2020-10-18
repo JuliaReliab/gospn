@@ -142,7 +142,7 @@ func cmdmark(args []string) {
 	rv := mg.RewardVector()
 	for rewardlabel, rv := range rv {
 		for g, v := range rv {
-			label := fmt.Sprintf("rwd%s%s", rewardlabel, grouplabel[g])
+			label := fmt.Sprintf("%s%s", rewardlabel, grouplabel[g])
 			data := matout.CreateMATLABMatrix(len(v), label, v)
 			matfile.AddElement(data)
 		}
