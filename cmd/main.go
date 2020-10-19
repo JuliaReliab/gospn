@@ -44,20 +44,23 @@ func cmdview(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "", "Output file (dot file)")
 	flag.CommandLine.Parse(args)
-	var net *petrinet.Net
+
+	var defs string
 	if *infile != "" {
-		if n, _, err := parser.PNreadFromFile(*infile); err == nil {
-			net = n
+		if b, err := ioutil.ReadFile(*infile); err == nil {
+			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
 		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
-			net, _ = parser.PNreadFromText(string(b))
+			defs = string(b)
 		} else {
 			panic(err)
 		}
 	}
+	net, _ := parser.PNreadFromText(defs)
+
 	if *outfile != "" {
 		file, err := os.Create(*outfile)
 		if err != nil {
@@ -78,25 +81,30 @@ func cmdmark(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
 	tangible := flag.Bool("t", false, "Create a (semi) tangible marking")
+	state := flag.String("s", "", "Output a state file")
 	markgraph := flag.String("m", "", "Output a dot file to draw the marking graph")
-	groupmarkgraph := flag.String("g", "", "OUtput a dot file to draw the group marking graph")
+	groupmarkgraph := flag.String("g", "", "Output a dot file to draw the group marking graph")
+	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	flag.CommandLine.Parse(args)
 
-	var net *petrinet.Net
-	var imark []petrinet.MarkInt
+	var defs string
 	if *infile != "" {
-		if n, i, err := parser.PNreadFromFile(*infile); err == nil {
-			net, imark = n, i
+		if b, err := ioutil.ReadFile(*infile); err == nil {
+			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
 		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
-			net, imark = parser.PNreadFromText(string(b))
+			defs = string(b)
 		} else {
 			panic(err)
 		}
 	}
+	if *params != "" {
+		defs = defs + "\n" + *params + "\n"
+	}
+	net, imark := parser.PNreadFromText(defs)
 
 	fmt.Print("Create marking...")
 	var mg *petrinet.MarkingGraph
@@ -109,8 +117,9 @@ func cmdmark(args []string) {
 	end := time.Now()
 	fmt.Println("done")
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
-	mg.Print()
+	mg.Summary()
 
+	// WriteMatrix
 	expmat, immmat, genmat := mg.TransMatrix()
 	grouplabel := mg.GroupLabels()
 	grouptranslabel := mg.TransLabels()
@@ -120,24 +129,28 @@ func cmdmark(args []string) {
 		dim, nnz, rowind, colptr, val := m.Get()
 		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
 		matfile.AddElement(data)
+		fmt.Printf("Write transition matrix %s\n", label)
 	}
 	for tr, m := range immmat {
 		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
 		dim, nnz, rowind, colptr, val := m.Get()
 		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
 		matfile.AddElement(data)
+		fmt.Printf("Write transition matrix %s\n", label)
 	}
 	for tr, m := range genmat {
 		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
 		dim, nnz, rowind, colptr, val := m.Get()
 		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
 		matfile.AddElement(data)
+		fmt.Printf("Write transition matrix %s\n", label)
 	}
 	iv := mg.InitVector()
 	for g, v := range iv {
 		label := fmt.Sprintf("init%s", grouplabel[g])
 		data := matout.CreateMATLABMatrix(len(v), label, v)
 		matfile.AddElement(data)
+		fmt.Printf("Write init vector %s\n", label)
 	}
 	rv := mg.RewardVector()
 	for rewardlabel, rv := range rv {
@@ -145,6 +158,7 @@ func cmdmark(args []string) {
 			label := fmt.Sprintf("%s%s", rewardlabel, grouplabel[g])
 			data := matout.CreateMATLABMatrix(len(v), label, v)
 			matfile.AddElement(data)
+			fmt.Printf("Write reward vector %s\n", label)
 		}
 	}
 
@@ -157,6 +171,7 @@ func cmdmark(args []string) {
 	matfile.ToBytes(matout.NewMATLABBuffer(writer, binary.LittleEndian))
 	writer.Flush()
 
+	// Write groupmarking graph
 	if *groupmarkgraph != "" {
 		fmt.Print("Write group marking graph...")
 		file, err := os.Create(*groupmarkgraph)
@@ -170,6 +185,21 @@ func cmdmark(args []string) {
 		fmt.Println("done")
 	}
 
+	// WriteState
+	if *state != "" {
+		fmt.Print("Write state file...")
+		file, err := os.Create(*state)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+		writer := bufio.NewWriter(file)
+		mg.WriteState(writer)
+		writer.Flush()
+		fmt.Println("done")
+	}
+
+	// Write marking graph
 	if *markgraph != "" {
 		fmt.Print("Write marking graph...")
 		file, err := os.Create(*markgraph)

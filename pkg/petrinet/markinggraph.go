@@ -63,14 +63,6 @@ func (g *Group) String() string {
 	return fmt.Sprintf("[%d %s]", g.gtype, g.gv)
 }
 
-// func (m *Group) String(net *Net) string {
-// 	result := make([]string, m.gv.n)
-// 	for i := 0; i < m.gv.n; i++ {
-// 		result[i] = net.translist[i].label + "->" + m.gv.Get(i).String()
-// 	}
-// 	return "{" + strings.Join(result, ",") + "}"
-// }
-
 // A generator to make a unique instance of Group
 type groupGenerator map[Group]*Group
 
@@ -559,6 +551,24 @@ func (mg *MarkingGraph) TransLabels() map[GroupTrans]string {
 	return labels
 }
 
+func (mg *MarkingGraph) StateLabels() map[*Group][]string {
+	labels := make(map[*Group][]string)
+	for _, g := range mg.groups {
+		tmp := make([]string, len(mg.groupToMark[g]))
+		for k, m := range mg.groupToMark[g] {
+			str := make([]string, 0)
+			for i, n := range m.toSlice() {
+				if n > 0 {
+					str = append(str, fmt.Sprintf("%s:%d", mg.net.placelist[i].label, n))
+				}
+				tmp[k] = strings.Join(str, ",")
+			}
+		}
+		labels[g] = tmp
+	}
+	return labels
+}
+
 func (mg *MarkingGraph) InitVector() map[*Group][]float64 {
 	ivector := make(map[*Group][]float64)
 	for g, mset := range mg.groupToMark {
@@ -588,21 +598,11 @@ func (mg *MarkingGraph) RewardVector() map[string]map[*Group][]float64 {
 	return result
 }
 
-func (g *GenVec) makeLabel(net *Net) string {
-	if g.IsAnyEnabled() == false {
-		return "EXP"
-	}
-	s := g.toSlice()
-	result := make([]string, 0, len(s))
-	for i, x := range s {
-		if x == ENABLE {
-			result = append(result, fmt.Sprintf("%s->%s", net.genlist[i].label, x.String()))
-		}
-	}
-	return strings.Join(result, ",")
-}
+/*
+	Output interfaces
+*/
 
-func (mg *MarkingGraph) Print() {
+func (mg *MarkingGraph) Summary() {
 	immstates := 0
 	genstates := 0
 	absstates := 0
@@ -616,10 +616,8 @@ func (mg *MarkingGraph) Print() {
 		nnz[src] = nnz[src] + len(mg.groupTransToLink[gtr])
 	}
 	writer := bytes.NewBuffer(make([]byte, 0, 1024))
-	i := 0
 	prevgv := new(GenVec)
-	for i < len(mg.groups) {
-		g := mg.groups[i]
+	for _, g := range mg.groups {
 		if prevgv != g.gv {
 			fmt.Fprintf(writer, "(%s)\n", g.gv.makeLabel(mg.net))
 			prevgv = g.gv
@@ -640,11 +638,35 @@ func (mg *MarkingGraph) Print() {
 		default:
 			log.Panic("Unknown grouptype")
 		}
-		i++
 	}
 	fmt.Printf("# of total states         : %d (%d)\n", immstates+genstates+absstates, immnnz+gennnz+absnnz)
 	fmt.Printf("# of total EXP/GEN states : %d (%d)\n", genstates, gennnz)
 	fmt.Printf("# of total IMM states     : %d (%d)\n", immstates, immnnz)
 	fmt.Printf("# of total ABS states     : %d (%d)\n", absstates, absnnz)
 	fmt.Println(writer.String())
+}
+
+func (mg *MarkingGraph) WriteState(writer io.Writer) {
+	statelabels := mg.StateLabels()
+	grouplabel := mg.GroupLabels()
+	for _, g := range mg.groups {
+		fmt.Fprintf(writer, "# %s\n", grouplabel[g])
+		for i, s := range statelabels[g] {
+			fmt.Fprintf(writer, "%d : {%s}\n", i, s)
+		}
+	}
+}
+
+func (g *GenVec) makeLabel(net *Net) string {
+	if g.IsAnyEnabled() == false {
+		return "EXP"
+	}
+	s := g.toSlice()
+	result := make([]string, 0, len(s))
+	for i, x := range s {
+		if x == ENABLE {
+			result = append(result, fmt.Sprintf("%s->%s", net.genlist[i].label, x.String()))
+		}
+	}
+	return strings.Join(result, ",")
 }

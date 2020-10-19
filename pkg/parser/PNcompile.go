@@ -667,12 +667,8 @@ func makeNet(labels []string, env ASTEnv) (*petrinet.Net, []petrinet.MarkInt) {
 
 	net.Finalize()
 
-	m := make([]petrinet.MarkInt, net.LenPlaceList(), net.LenPlaceList())
-	for k, v := range initmark {
-		if place, ok := net.GetPlace(k); ok {
-			m[place.GetIndex()] = v
-		}
-	}
+	m := net.MakeMark(initmark)
+
 	logger.Print("Done: compile")
 	return net, m
 }
