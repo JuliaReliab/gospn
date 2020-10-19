@@ -1,7 +1,9 @@
 ### Implementation
 
 - Testing for Update
-- MC simulation: SFMT? Mernenne?
+- simulation: compute reward from evnet results
+- simulation: simulation configuration from JSON
+- simulation: replace rng to SFMT? Mernenne?
 
 ### Enhancement
 
