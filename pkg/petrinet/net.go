@@ -86,8 +86,8 @@ const (
 
 type GenTrans struct {
 	*Trans
-	dist   *Distribution  // the distribution
-	policy GenTransPolicy // policy for preemption
+	dist   DistributionInterface // the distribution
+	policy GenTransPolicy        // policy for preemption
 }
 
 func (p *Place) GetLabel() string {
@@ -179,7 +179,7 @@ func newExpTrans(label string, index int, priority int, vanishable bool, rate fl
 	}
 }
 
-func newGenTrans(label string, index int, priority int, vanishable bool, dist *Distribution, policy GenTransPolicy) *GenTrans {
+func newGenTrans(label string, index int, priority int, vanishable bool, dist DistributionInterface, policy GenTransPolicy) *GenTrans {
 	return &GenTrans{
 		Trans:  newTrans(label, index, priority, vanishable),
 		dist:   dist,
@@ -259,13 +259,13 @@ type Net struct {
 	infunc        map[*InArc]func([]MarkInt) MarkInt   // multiplicity functions
 	outfunc       map[*OutArc]func([]MarkInt) MarkInt  // multiplicity functions
 	ratefunc      map[*Trans]func([]MarkInt) float64   // weight and rate functions
+	rewardfunc    map[string]func([]MarkInt) float64   // reward functions
 	placelabel    map[string]*Place                    // labels for places
 	translabel    map[string]*Trans                    // labels for trans
 	guardstring   map[*Trans]string                    // string for guard functions
 	updatesstring map[*Trans]string                    // string for guard functions
 	infuncstring  map[*InArc]string                    // multiplicity functions
 	outfuncstring map[*OutArc]string                   // multiplicity functions
-	rewardfunc    map[string]func([]MarkInt) float64   // reward functions
 }
 
 func NewNet() *Net {
@@ -311,7 +311,7 @@ func (net *Net) NewExpTrans(label string, priority int, vanishable bool, rate fl
 	return tr
 }
 
-func (net *Net) NewGenTrans(label string, priority int, vanishable bool, dist *Distribution, policy GenTransPolicy) *GenTrans {
+func (net *Net) NewGenTrans(label string, priority int, vanishable bool, dist DistributionInterface, policy GenTransPolicy) *GenTrans {
 	tr := newGenTrans(label, 0, priority, vanishable, dist, policy)
 	net.genlist = append(net.genlist, tr)
 	net.translabel[label] = tr.Trans

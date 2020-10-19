@@ -561,8 +561,8 @@ func (mg *MarkingGraph) StateLabels() map[*Group][]string {
 				if n > 0 {
 					str = append(str, fmt.Sprintf("%s:%d", mg.net.placelist[i].label, n))
 				}
-				tmp[k] = strings.Join(str, ",")
 			}
+			tmp[k] = strings.Join(str, ",")
 		}
 		labels[g] = tmp
 	}
