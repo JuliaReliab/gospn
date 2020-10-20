@@ -16,13 +16,18 @@ make build
 ```
 
 The tool has been developed with Go 1.10.4 on linux/amd64. A single binary `gospn` is built in `bin` directory.
+If you want to do the cross compile, please uses
+
+```sh
+make build_all
+```
 
 ## Usage
 
 ### Draw a perinet
 
 ```sh
-gospn view -i <infile> -o <outfile>
+gospn view [-i <infile>] [-o <outfile>]
 ```
 
 The inputfile is a text file that describes the definition of Perinet (see `Petrinet definition` in detail).
@@ -36,11 +41,49 @@ the tool displays the contens of dot file with stdout.
 ### Generate marking
 
 ```sh
-gospn mark -i <infile> -o <outfile> [-t] [-m <dotfile>] [-g]
+gospn mark [-i <infile>] [-o <outfile>] [-t] [-m <filename>] [-g <filename>] [-p <string>]
 ```
 
 The tool analyzes the Petrinet and outputs MATLAB matrix for the transition matrix. The option `-t` creates a (semi) tangible marking.
-The option `-m` outputs a dot file to draw the marking graph. The option `-g` displays the dot to draw a group marking.
+The option `-m` outputs a dot file to draw the marking graph. The option `-g` outputs a dot file to draw a group marking. The option `-p`
+is to put some additional defintion like parameters to the Petrinet definition.
+
+### Monte Carlo simulation
+
+```sh
+gospn sim [-i <infile>] [-o <outfile>] [-s <int>] [-f <file>] [-c <string>] [-p <string>]
+```
+
+Simulate a given Petrinet and compute rewards based on Monte Carlo simulation. The option `-o` indicates the name of MATLAB
+matrix file to store the vectors for rewards. The option `-s` is a seed of random number generator.
+The option `-f` indicates a configuration file for the simulation that are written by
+JSON. Also, the option `-c` provides the JSON configuration as strings. If both `-f` and `-c` are given, the option `-f` is used.
+The option `-p` is to put some additional defintion like parameters to the Petrinet definition.
+
+An example of configuration is given by
+```json
+{ "time": 10, "firings": 1000, "simulations": 10, "rewards": ["avail", "unavail"] }
+```
+- `time` is the maximum time for simulation to stop the simulation (it's not real clock, but is the clock in simulation)
+- `firings` is the maximum number of firings to stop the simulation
+- `simulations` is the number of times of simulations
+- `rewards` is a vector to indicate the rewards to be computed
+
+The stop condition for one simulation is the AND condition for `time` and `firings`.
+Also, if `time` and `firings` are set to zeros, these stop conditions are removed.
+In `rewards`, we should set strings of rewards that are described in the Petrinet definition file
+(It may be useful to use the option `-p` if there is no reward you want).
+
+### Monte Carlo simulation for one path
+
+```sh
+gospn test [-i <infile>] [-s <int>] [-t <value>] [-n <int>]
+```
+
+Simulate one path for a given Petrinet. For example, this is used for a testing of Petrinet definition.
+The option `-s` is a seed of random number generator. The option `-t` indicates the stop condition with
+elapsed time. The option `-n` indicates the stop condition based on the number of firrings. This mode just
+displays a path to stdout.
 
 ## Definition of Petrinet
 
