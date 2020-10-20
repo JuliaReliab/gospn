@@ -20,7 +20,8 @@ func usage() {
 commands: (command help: gospn command -h)
   view  Output a dot file to draw a Petrinet
   mark  Make a marking graph and output matrices
-  sim   Monte Carlo simulation (not yet)
+  sim   Monte Carlo simulation
+  test  Simulate a path of markings
   help  Display this message`
 
 	fmt.Println(msg)
@@ -36,6 +37,8 @@ func main() {
 		cmdmark(args)
 	case "sim":
 		cmdsim(args)
+	case "test":
+		cmdtest(args)
 	case "help":
 		usage()
 	default:
@@ -301,4 +304,43 @@ func cmdsim(args []string) {
 	writer := bufio.NewWriter(mfile)
 	matfile.ToBytes(matout.NewMATLABBuffer(writer, binary.LittleEndian))
 	writer.Flush()
+}
+
+func cmdtest(args []string) {
+	infile := flag.String("i", "", "Petrinet definition file")
+	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
+	seed := flag.Int64("s", 1234, "A seed for random number generator")
+	elapsedtime := flag.Float64("t", 0.0, "Maximum elapsed time for simulation")
+	maxcount := flag.Int("n", 100, "Maximum number of firings for simulation")
+	flag.CommandLine.Parse(args)
+
+	var defs string
+	if *infile != "" {
+		if b, err := ioutil.ReadFile(*infile); err == nil {
+			defs = string(b)
+		} else {
+			panic(err)
+		}
+	} else {
+		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+			defs = string(b)
+		} else {
+			panic(err)
+		}
+	}
+	if *params != "" {
+		defs = defs + "\n" + *params + "\n"
+	}
+	net, imark := parser.PNreadFromText(defs)
+
+	config := petrinet.PNSimConfig{
+		EndingTime:  *elapsedtime,
+		NumOfFiring: int32(*maxcount),
+	}
+	sim := petrinet.NewPNSimulation(net, config)
+	rng := rand.New(rand.NewSource(*seed))
+	path, _, _ := sim.RunSimulation(imark, rng)
+	for i, x := range path {
+		fmt.Println(i, x.String(net))
+	}
 }

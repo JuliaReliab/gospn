@@ -3,19 +3,8 @@ package petrinet
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 )
-
-func (e event) String(net *Net) string {
-	str := make([]string, 0)
-	for i, n := range e.mark {
-		if n > 0 {
-			str = append(str, fmt.Sprintf("%s:%d", net.placelist[i].label, n))
-		}
-	}
-	return fmt.Sprintf("%.4f {%s} %t", e.time, strings.Join(str, ","), e.change)
-}
 
 func TestSim1(t *testing.T) {
 	net := NewNet()
@@ -40,7 +29,7 @@ func TestSim1(t *testing.T) {
 	}
 	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
-	result, nn, tt := sim.runSimulation(m0, rand.New(s))
+	result, nn, tt := sim.RunSimulation(m0, rand.New(s))
 	fmt.Println(nn, tt)
 	for i, x := range result {
 		fmt.Println(i, x.String(net))
@@ -55,7 +44,7 @@ func TestSim2(t *testing.T) {
 	}
 	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
-	result, nn, tt := sim.runSimulation(m0, rand.New(s))
+	result, nn, tt := sim.RunSimulation(m0, rand.New(s))
 	fmt.Println(nn, tt)
 	for i, x := range result {
 		fmt.Println(i, x.String(net))

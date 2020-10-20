@@ -3,13 +3,10 @@ package petrinet
 import (
 	// "log"
 	"encoding/json"
+	"fmt"
 	"math"
+	"strings"
 )
-
-type PNSim struct {
-	rng           RandomNumberGenerator
-	remainingTime []float64
-}
 
 func (tr *ImmTrans) getWeight(net *Net, m []MarkInt) float64 {
 	if wfunc, ok := net.ratefunc[tr.Trans]; ok {
@@ -20,6 +17,7 @@ func (tr *ImmTrans) getWeight(net *Net, m []MarkInt) float64 {
 
 type simTransInterface interface {
 	firingInterface
+	getTrans() *Trans
 	nextTime(*Net, []MarkInt, RandomNumberGenerator) float64
 }
 
@@ -60,9 +58,23 @@ func NewPNSimulation(net *Net, config PNSimConfig) *PNSimulation {
 }
 
 type event struct {
-	time   float64
-	mark   []MarkInt
-	change bool
+	time float64
+	mark []MarkInt
+	tr   *Trans
+}
+
+func (e event) String(net *Net) string {
+	str := make([]string, 0)
+	for i, n := range e.mark {
+		if n > 0 {
+			str = append(str, fmt.Sprintf("%s:%d", net.placelist[i].label, n))
+		}
+	}
+	if e.tr != nil {
+		return fmt.Sprintf("%.4f {%s} %s", e.time, strings.Join(str, ","), e.tr.label)
+	} else {
+		return fmt.Sprintf("%.4f {%s} -", e.time, strings.Join(str, ","))
+	}
 }
 
 func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator) ([]event, float64, int32) {
@@ -101,9 +113,8 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 		}
 	}
 	events = append(events, event{
-		time:   0.0,
-		mark:   m,
-		change: false,
+		time: 0.0,
+		mark: m,
 	})
 	for {
 		for i, tr := range net.genlist {
@@ -151,11 +162,14 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 			for i, w := range weights {
 				s += w
 				if s > u {
-					if next, err := net.immlist[i].DoFiring(net, m); err == nil {
-						m = next
-						count++
-						break
-					}
+					m, _ = net.immlist[i].DoFiring(net, m)
+					count++
+					events = append(events, event{
+						time: elapsedtime,
+						mark: m,
+						tr:   net.immlist[i].getTrans(),
+					})
+					break
 				}
 			}
 		} else {
@@ -180,9 +194,8 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 
 			if firingtr == nil { // absorbing state
 				events = append(events, event{
-					time:   sim.EndingTime,
-					mark:   m,
-					change: false,
+					time: sim.EndingTime,
+					mark: m,
 				})
 				break
 			}
@@ -197,23 +210,20 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 			if sim.EndingTime != 0.0 && elapsedtime > sim.EndingTime {
 				elapsedtime = sim.EndingTime
 				events = append(events, event{
-					time:   elapsedtime,
-					mark:   m,
-					change: false,
+					time: elapsedtime,
+					mark: m,
 				})
 				break
 			}
 
-			if next, err := firingtr.DoFiring(net, m); err == nil {
-				m = next
-				count++
-			}
+			m, _ = firingtr.DoFiring(net, m)
+			count++
+			events = append(events, event{
+				time: elapsedtime,
+				mark: m,
+				tr:   firingtr.getTrans(),
+			})
 		}
-		events = append(events, event{
-			time:   elapsedtime,
-			mark:   m,
-			change: true,
-		})
 		if sim.NumOfFiring != 0 && count >= sim.NumOfFiring {
 			break
 		}
@@ -228,7 +238,7 @@ func (sim *PNSimulation) calcReward(events []event, rfunc func([]MarkInt) float6
 	prevtime := 0.0
 	for _, e := range events {
 		r := rfunc(e.mark)
-		if e.change {
+		if e.tr != nil {
 			irwd += r
 		}
 		crwd += r * (e.time - prevtime)
