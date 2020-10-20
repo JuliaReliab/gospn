@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"time"
 )
@@ -33,6 +34,8 @@ func main() {
 		cmdview(args)
 	case "mark":
 		cmdmark(args)
+	case "sim":
+		cmdsim(args)
 	case "help":
 		usage()
 	default:
@@ -212,4 +215,90 @@ func cmdmark(args []string) {
 		writer.Flush()
 		fmt.Println("done")
 	}
+}
+
+func cmdsim(args []string) {
+	infile := flag.String("i", "", "Petrinet definition file")
+	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
+	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
+	seed := flag.Int64("s", 1234, "A seed for random number generator")
+	configfile := flag.String("f", "", "Configuration file for simulation")
+	configure := flag.String("c", "", "JSON configuration (text)")
+	flag.CommandLine.Parse(args)
+
+	var defs string
+	if *infile != "" {
+		if b, err := ioutil.ReadFile(*infile); err == nil {
+			defs = string(b)
+		} else {
+			panic(err)
+		}
+	} else {
+		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+			defs = string(b)
+		} else {
+			panic(err)
+		}
+	}
+	if *params != "" {
+		defs = defs + "\n" + *params + "\n"
+	}
+	net, imark := parser.PNreadFromText(defs)
+
+	var config petrinet.PNSimConfig
+	var json []byte
+	if *configfile != "" {
+		if j, err := ioutil.ReadFile(*configfile); err == nil {
+			json = j
+		} else {
+			panic(err)
+		}
+	} else if *configure != "" {
+		json = []byte(*configure)
+	} else {
+		panic("Configuration JSON was not found")
+	}
+	if c, err := petrinet.ReadConfigFromJson([]byte(json)); err == nil {
+		config = c
+	} else {
+		panic(err)
+	}
+	sim := petrinet.NewPNSimulation(net, config)
+	rng := rand.New(rand.NewSource(*seed))
+
+	fmt.Print("Run simulation...")
+	start := time.Now()
+	irwd, crwd, lastrwd, elapsedtime, count := sim.RunAll(imark, rng)
+	end := time.Now()
+	fmt.Println("done")
+	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
+
+	// WriteMatrix
+	matfile := matout.CreateMATLABMatFile(true)
+	for rlabel, v := range irwd {
+		label := fmt.Sprintf("%s_irwd", rlabel)
+		data := matout.CreateMATLABMatrix(len(v), label, v)
+		matfile.AddElement(data)
+	}
+	for rlabel, v := range crwd {
+		label := fmt.Sprintf("%s_crwd", rlabel)
+		data := matout.CreateMATLABMatrix(len(v), label, v)
+		matfile.AddElement(data)
+	}
+	for rlabel, v := range lastrwd {
+		label := fmt.Sprintf("%s_irwd", rlabel)
+		data := matout.CreateMATLABMatrix(len(v), label, v)
+		matfile.AddElement(data)
+	}
+	matfile.AddElement(matout.CreateMATLABMatrix(len(elapsedtime), "elapsedtime", elapsedtime))
+	matfile.AddElement(matout.CreateMATLABMatrix(len(count), "count", count))
+
+	mfile, err := os.Create(*outfile)
+	if err != nil {
+		panic(err)
+	}
+	defer mfile.Close()
+	writer := bufio.NewWriter(mfile)
+	matfile.ToBytes(matout.NewMATLABBuffer(writer, binary.LittleEndian))
+	writer.Flush()
 }

@@ -35,8 +35,8 @@ func TestSim1(t *testing.T) {
 
 	m0 := []MarkInt{10, 1, 1}
 	config := PNSimConfig{
-		endingtime:  100,
-		numOfFiring: 0,
+		EndingTime:  100,
+		NumOfFiring: 0,
 	}
 	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
@@ -50,8 +50,8 @@ func TestSim1(t *testing.T) {
 func TestSim2(t *testing.T) {
 	net, m0 := buildRaid6()
 	config := PNSimConfig{
-		endingtime:  0,
-		numOfFiring: 10,
+		EndingTime:  0,
+		NumOfFiring: 10,
 	}
 	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
@@ -65,15 +65,47 @@ func TestSim2(t *testing.T) {
 func TestSim3(t *testing.T) {
 	net, m0 := buildRaid6()
 	config := PNSimConfig{
-		endingtime:      0,
-		numOfFiring:     10,
-		numOfSimulation: 100,
-		rewards:         []string{"avail"},
+		EndingTime:      0,
+		NumOfFiring:     10,
+		NumOfSimulation: 100,
+		Rewards:         []string{"avail"},
 	}
 	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
-	irwd, crwd, lastrwd, _, _ := sim.runAll(m0, rand.New(s))
+	irwd, crwd, lastrwd, _, _ := sim.RunAll(m0, rand.New(s))
 	fmt.Println(irwd)
 	fmt.Println(crwd)
 	fmt.Println(lastrwd)
+}
+
+func TestJSON1(t *testing.T) {
+	json := `
+	{
+		"time": 1.0,
+		"firings": 5,
+		"simulations": 10,
+		"rewards": ["avail", "unavail"]
+	}`
+	result, err := ReadConfigFromJson([]byte(json))
+	fmt.Println(result)
+	fmt.Println(err)
+}
+
+func TestSim4(t *testing.T) {
+	net, m0 := buildRaid6()
+	json := `
+	{
+		"time": 0,
+		"firings": 10,
+		"simulations": 100,
+		"rewards": ["avail", "unavail"]
+	}`
+	if config, err := ReadConfigFromJson([]byte(json)); err == nil {
+		sim := NewPNSimulation(net, config)
+		s := rand.NewSource(1)
+		irwd, crwd, lastrwd, _, _ := sim.RunAll(m0, rand.New(s))
+		fmt.Println(irwd)
+		fmt.Println(crwd)
+		fmt.Println(lastrwd)
+	}
 }

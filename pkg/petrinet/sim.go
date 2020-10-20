@@ -2,6 +2,7 @@ package petrinet
 
 import (
 	// "log"
+	"encoding/json"
 	"math"
 )
 
@@ -34,10 +35,16 @@ func (tr *GenTrans) nextTime(net *Net, m []MarkInt, rng RandomNumberGenerator) f
 }
 
 type PNSimConfig struct {
-	endingtime      float64
-	numOfFiring     int
-	numOfSimulation int
-	rewards         []string
+	EndingTime      float64  `json:"time"`
+	NumOfFiring     int32    `json:"firings"`
+	NumOfSimulation int      `json:"simulations"`
+	Rewards         []string `json:"rewards"`
+}
+
+func ReadConfigFromJson(b []byte) (PNSimConfig, error) {
+	var config PNSimConfig
+	err := json.Unmarshal(b, &config)
+	return config, err
 }
 
 type PNSimulation struct {
@@ -58,10 +65,10 @@ type event struct {
 	change bool
 }
 
-func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator) ([]event, float64, int) {
+func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator) ([]event, float64, int32) {
 	net := sim.net
 	elapsedtime := 0.0
-	count := 0
+	var count int32 = 0
 	m := init
 	weights := make([]float64, len(net.immlist))
 	genstates := make([]TransStatus, len(net.genlist))
@@ -173,8 +180,9 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 
 			if firingtr == nil { // absorbing state
 				events = append(events, event{
-					time: sim.endingtime,
-					mark: m,
+					time:   sim.EndingTime,
+					mark:   m,
+					change: false,
 				})
 				break
 			}
@@ -186,8 +194,8 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 			}
 			elapsedtime += mintime
 
-			if sim.endingtime != 0.0 && elapsedtime > sim.endingtime {
-				elapsedtime = sim.endingtime
+			if sim.EndingTime != 0.0 && elapsedtime > sim.EndingTime {
+				elapsedtime = sim.EndingTime
 				events = append(events, event{
 					time:   elapsedtime,
 					mark:   m,
@@ -206,7 +214,7 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 			mark:   m,
 			change: true,
 		})
-		if sim.numOfFiring != 0 && count >= sim.numOfFiring {
+		if sim.NumOfFiring != 0 && count >= sim.NumOfFiring {
 			break
 		}
 	}
@@ -224,7 +232,7 @@ func (sim *PNSimulation) calcReward(events []event, rfunc func([]MarkInt) float6
 			irwd += r
 		}
 		crwd += r * (e.time - prevtime)
-		if e.time == sim.endingtime {
+		if e.time == sim.EndingTime {
 			lastrwd = r
 		}
 		prevtime = e.time
@@ -232,23 +240,23 @@ func (sim *PNSimulation) calcReward(events []event, rfunc func([]MarkInt) float6
 	return irwd, crwd, lastrwd
 }
 
-func (sim *PNSimulation) runAll(init []MarkInt, rng RandomNumberGenerator) (map[string][]float64, map[string][]float64, map[string][]float64, []float64, []int) {
+func (sim *PNSimulation) RunAll(init []MarkInt, rng RandomNumberGenerator) (map[string][]float64, map[string][]float64, map[string][]float64, []float64, []int32) {
 	irwd := make(map[string][]float64)
 	crwd := make(map[string][]float64)
 	lastrwd := make(map[string][]float64)
-	for _, str := range sim.rewards {
-		irwd[str] = make([]float64, sim.numOfSimulation)
-		crwd[str] = make([]float64, sim.numOfSimulation)
-		lastrwd[str] = make([]float64, sim.numOfSimulation)
+	for _, str := range sim.Rewards {
+		irwd[str] = make([]float64, sim.NumOfSimulation)
+		crwd[str] = make([]float64, sim.NumOfSimulation)
+		lastrwd[str] = make([]float64, sim.NumOfSimulation)
 	}
-	nn := make([]int, sim.numOfSimulation)
-	elapsedtime := make([]float64, sim.numOfSimulation)
+	nn := make([]int32, sim.NumOfSimulation)
+	elapsedtime := make([]float64, sim.NumOfSimulation)
 
-	for k := 0; k < sim.numOfSimulation; k++ {
-		events, time, count := sim.runSimulation(init, rng)
+	for k := 0; k < sim.NumOfSimulation; k++ {
+		events, time, count := sim.RunSimulation(init, rng)
 		elapsedtime[k] = time
 		nn[k] = count
-		for _, str := range sim.rewards {
+		for _, str := range sim.Rewards {
 			if rfunc, ok := sim.net.rewardfunc[str]; ok {
 				irwd[str][k], crwd[str][k], lastrwd[str][k] = sim.calcReward(events, rfunc)
 			}
