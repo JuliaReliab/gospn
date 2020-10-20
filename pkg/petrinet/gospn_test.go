@@ -64,6 +64,8 @@ func buildRaid6() (*Net, []MarkInt) {
 				lambda = 1/MTTF
 				MTTR1 = 2 // [hours]
 				MTTR2 = 24 // [hours]
+				reward avail ifelse(#Po == 1, 1, 0)
+				reward unavail ifelse(#Po == 1, 0, 1)
 	*/
 	net := NewNet()
 
@@ -122,6 +124,21 @@ func buildRaid6() (*Net, []MarkInt) {
 	net.SetGuard(Tinit, "#Pc==1", ginit)
 	net.SetGuard(Tstart, "#Pdf>2", gstart)
 	net.SetGuard(Tend, "#Pdf==0", gend)
+
+	net.SetReward("avail", func(m []MarkInt) float64 {
+		if m[Po.index] == 1 {
+			return 1.0
+		} else {
+			return 0.0
+		}
+	})
+	net.SetReward("unavail", func(m []MarkInt) float64 {
+		if m[Po.index] == 1 {
+			return 0.0
+		} else {
+			return 1.0
+		}
+	})
 
 	net.Finalize()
 

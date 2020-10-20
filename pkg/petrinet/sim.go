@@ -33,25 +33,43 @@ func (tr *GenTrans) nextTime(net *Net, m []MarkInt, rng RandomNumberGenerator) f
 	return tr.dist.Float64(rng)
 }
 
+type PNSimConfig struct {
+	endingtime      float64
+	numOfFiring     int
+	numOfSimulation int
+	rewards         []string
+}
+
 type PNSimulation struct {
-	net        *Net
-	endingtime float64
+	PNSimConfig
+	net *Net
+}
+
+func NewPNSimulation(net *Net, config PNSimConfig) *PNSimulation {
+	return &PNSimulation{
+		PNSimConfig: config,
+		net:         net,
+	}
 }
 
 type event struct {
-	time float64
-	mark []MarkInt
+	time   float64
+	mark   []MarkInt
+	change bool
 }
 
-func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator) []event {
+func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator) ([]event, float64, int) {
 	net := sim.net
 	elapsedtime := 0.0
+	count := 0
 	m := init
 	weights := make([]float64, len(net.immlist))
 	genstates := make([]TransStatus, len(net.genlist))
 	genremain := make([]float64, len(net.genlist))
 	geninit := make([]float64, len(net.genlist))
-	result := make([]event, 0)
+	events := make([]event, 0)
+
+	// initialize for sim
 	for i, tr := range net.genlist {
 		genstates[i] = tr.IsEnabled(net, m)
 		switch genstates[i] {
@@ -75,12 +93,12 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 			}
 		}
 	}
+	events = append(events, event{
+		time:   0.0,
+		mark:   m,
+		change: false,
+	})
 	for {
-		result = append(result, event{
-			time: elapsedtime,
-			mark: m,
-		})
-
 		for i, tr := range net.genlist {
 			switch tr.IsEnabled(net, m) {
 			case DISABLE:
@@ -128,58 +146,114 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 				if s > u {
 					if next, err := net.immlist[i].DoFiring(net, m); err == nil {
 						m = next
+						count++
 						break
 					}
 				}
 			}
-			continue // next simulation loop
-		}
-
-		mintime := math.MaxFloat64
-		var firingtr simTransInterface
-		// GEN trans
-		for i, tr := range net.genlist {
-			if genstates[i] == ENABLE && genremain[i] < mintime {
-				mintime = genremain[i]
-				firingtr = tr
-			}
-		}
-		// EXP trans
-		for _, tr := range net.explist {
-			if tr.IsEnabled(net, m) == ENABLE {
-				if t := tr.nextTime(net, m, rng); t < mintime {
-					mintime = t
+		} else {
+			mintime := math.MaxFloat64
+			var firingtr simTransInterface
+			// GEN trans
+			for i, tr := range net.genlist {
+				if genstates[i] == ENABLE && genremain[i] < mintime {
+					mintime = genremain[i]
 					firingtr = tr
 				}
 			}
-		}
+			// EXP trans
+			for _, tr := range net.explist {
+				if tr.IsEnabled(net, m) == ENABLE {
+					if t := tr.nextTime(net, m, rng); t < mintime {
+						mintime = t
+						firingtr = tr
+					}
+				}
+			}
 
-		if firingtr == nil { // absorbing state
-			result = append(result, event{
-				time: sim.endingtime,
-				mark: m,
-			})
-			break
-		}
+			if firingtr == nil { // absorbing state
+				events = append(events, event{
+					time: sim.endingtime,
+					mark: m,
+				})
+				break
+			}
 
-		for i, _ := range net.genlist {
-			if genstates[i] == ENABLE {
-				genremain[i] -= mintime
+			for i, _ := range net.genlist {
+				if genstates[i] == ENABLE {
+					genremain[i] -= mintime
+				}
+			}
+			elapsedtime += mintime
+
+			if sim.endingtime != 0.0 && elapsedtime > sim.endingtime {
+				elapsedtime = sim.endingtime
+				events = append(events, event{
+					time:   elapsedtime,
+					mark:   m,
+					change: false,
+				})
+				break
+			}
+
+			if next, err := firingtr.DoFiring(net, m); err == nil {
+				m = next
+				count++
 			}
 		}
-		elapsedtime += mintime
-
-		if elapsedtime > sim.endingtime {
-			result = append(result, event{
-				time: sim.endingtime,
-				mark: m,
-			})
+		events = append(events, event{
+			time:   elapsedtime,
+			mark:   m,
+			change: true,
+		})
+		if sim.numOfFiring != 0 && count >= sim.numOfFiring {
 			break
 		}
+	}
+	return events, elapsedtime, count
+}
 
-		if next, err := firingtr.DoFiring(net, m); err == nil {
-			m = next
+func (sim *PNSimulation) calcReward(events []event, rfunc func([]MarkInt) float64) (float64, float64, float64) {
+	irwd := 0.0
+	crwd := 0.0
+	lastrwd := 0.0
+	prevtime := 0.0
+	for _, e := range events {
+		r := rfunc(e.mark)
+		if e.change {
+			irwd += r
+		}
+		crwd += r * (e.time - prevtime)
+		if e.time == sim.endingtime {
+			lastrwd = r
+		}
+		prevtime = e.time
+	}
+	return irwd, crwd, lastrwd
+}
+
+func (sim *PNSimulation) runAll(init []MarkInt, rng RandomNumberGenerator) (map[string][]float64, map[string][]float64, map[string][]float64, []float64, []int) {
+	irwd := make(map[string][]float64)
+	crwd := make(map[string][]float64)
+	lastrwd := make(map[string][]float64)
+	for _, str := range sim.rewards {
+		irwd[str] = make([]float64, sim.numOfSimulation)
+		crwd[str] = make([]float64, sim.numOfSimulation)
+		lastrwd[str] = make([]float64, sim.numOfSimulation)
+	}
+	nn := make([]int, sim.numOfSimulation)
+	elapsedtime := make([]float64, sim.numOfSimulation)
+
+	for k := 0; k < sim.numOfSimulation; k++ {
+		events, time, count := sim.runSimulation(init, rng)
+		elapsedtime[k] = time
+		nn[k] = count
+		for _, str := range sim.rewards {
+			if rfunc, ok := sim.net.rewardfunc[str]; ok {
+				irwd[str][k], crwd[str][k], lastrwd[str][k] = sim.calcReward(events, rfunc)
+			}
 		}
 	}
-	return result
+
+	return irwd, crwd, lastrwd, elapsedtime, nn
 }

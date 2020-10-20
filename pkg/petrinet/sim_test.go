@@ -14,7 +14,7 @@ func (e event) String(net *Net) string {
 			str = append(str, fmt.Sprintf("%s:%d", net.placelist[i].label, n))
 		}
 	}
-	return fmt.Sprintf("%.4f {%s}", e.time, strings.Join(str, ","))
+	return fmt.Sprintf("%.4f {%s} %t", e.time, strings.Join(str, ","), e.change)
 }
 
 func TestSim1(t *testing.T) {
@@ -34,12 +34,14 @@ func TestSim1(t *testing.T) {
 	net.Finalize()
 
 	m0 := []MarkInt{10, 1, 1}
-	sim := PNSimulation{
-		net:        net,
-		endingtime: 100,
+	config := PNSimConfig{
+		endingtime:  100,
+		numOfFiring: 0,
 	}
+	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
-	result := sim.runSimulation(m0, rand.New(s))
+	result, nn, tt := sim.runSimulation(m0, rand.New(s))
+	fmt.Println(nn, tt)
 	for i, x := range result {
 		fmt.Println(i, x.String(net))
 	}
@@ -47,13 +49,31 @@ func TestSim1(t *testing.T) {
 
 func TestSim2(t *testing.T) {
 	net, m0 := buildRaid6()
-	sim := PNSimulation{
-		net:        net,
-		endingtime: 1000.0,
+	config := PNSimConfig{
+		endingtime:  0,
+		numOfFiring: 10,
 	}
+	sim := NewPNSimulation(net, config)
 	s := rand.NewSource(1)
-	result := sim.runSimulation(m0, rand.New(s))
+	result, nn, tt := sim.runSimulation(m0, rand.New(s))
+	fmt.Println(nn, tt)
 	for i, x := range result {
 		fmt.Println(i, x.String(net))
 	}
+}
+
+func TestSim3(t *testing.T) {
+	net, m0 := buildRaid6()
+	config := PNSimConfig{
+		endingtime:      0,
+		numOfFiring:     10,
+		numOfSimulation: 100,
+		rewards:         []string{"avail"},
+	}
+	sim := NewPNSimulation(net, config)
+	s := rand.NewSource(1)
+	irwd, crwd, lastrwd, _, _ := sim.runAll(m0, rand.New(s))
+	fmt.Println(irwd)
+	fmt.Println(crwd)
+	fmt.Println(lastrwd)
 }
