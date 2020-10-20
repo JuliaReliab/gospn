@@ -193,10 +193,12 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 			}
 
 			if firingtr == nil { // absorbing state
-				events = append(events, event{
-					time: sim.EndingTime,
-					mark: m,
-				})
+				if sim.EndingTime > 0.0 {
+					events = append(events, event{
+						time: sim.EndingTime,
+						mark: m,
+					})
+				}
 				break
 			}
 
