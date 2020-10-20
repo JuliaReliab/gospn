@@ -51,3 +51,6 @@ MTTF = 1.0e+6 // [hours]
 lambda = 1/MTTF
 MTTR1 = 2 // [hours]
 MTTR2 = 24 // [hours]
+
+reward avail ifelse(#Po == 1, 1, 0)
+reward unavail ifelse(#Po == 1, 0, 1)

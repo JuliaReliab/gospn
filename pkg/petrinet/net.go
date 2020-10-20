@@ -86,8 +86,8 @@ const (
 
 type GenTrans struct {
 	*Trans
-	dist   *Distribution  // the distribution
-	policy GenTransPolicy // policy for preemption
+	dist   DistributionInterface // the distribution
+	policy GenTransPolicy        // policy for preemption
 }
 
 func (p *Place) GetLabel() string {
@@ -179,7 +179,7 @@ func newExpTrans(label string, index int, priority int, vanishable bool, rate fl
 	}
 }
 
-func newGenTrans(label string, index int, priority int, vanishable bool, dist *Distribution, policy GenTransPolicy) *GenTrans {
+func newGenTrans(label string, index int, priority int, vanishable bool, dist DistributionInterface, policy GenTransPolicy) *GenTrans {
 	return &GenTrans{
 		Trans:  newTrans(label, index, priority, vanishable),
 		dist:   dist,
@@ -259,16 +259,13 @@ type Net struct {
 	infunc        map[*InArc]func([]MarkInt) MarkInt   // multiplicity functions
 	outfunc       map[*OutArc]func([]MarkInt) MarkInt  // multiplicity functions
 	ratefunc      map[*Trans]func([]MarkInt) float64   // weight and rate functions
+	rewardfunc    map[string]func([]MarkInt) float64   // reward functions
 	placelabel    map[string]*Place                    // labels for places
 	translabel    map[string]*Trans                    // labels for trans
 	guardstring   map[*Trans]string                    // string for guard functions
 	updatesstring map[*Trans]string                    // string for guard functions
 	infuncstring  map[*InArc]string                    // multiplicity functions
 	outfuncstring map[*OutArc]string                   // multiplicity functions
-	rewardfunc    map[string]func([]MarkInt) float64   // reward functions
-	// immlist   map[*Trans]*ImmTrans            // the list of imm transitions
-	// explist   map[*Trans]*ExpTrans            // the list of exp transitons
-	// genlist   map[*Trans]*GenTrans            // the list of gen transitions
 }
 
 func NewNet() *Net {
@@ -283,13 +280,13 @@ func NewNet() *Net {
 		infunc:        make(map[*InArc]func([]MarkInt) MarkInt),
 		outfunc:       make(map[*OutArc]func([]MarkInt) MarkInt),
 		ratefunc:      make(map[*Trans]func([]MarkInt) float64),
+		rewardfunc:    make(map[string]func([]MarkInt) float64),
 		placelabel:    make(map[string]*Place),
 		translabel:    make(map[string]*Trans),
 		guardstring:   make(map[*Trans]string),
 		updatesstring: make(map[*Trans]string),
 		infuncstring:  make(map[*InArc]string),
 		outfuncstring: make(map[*OutArc]string),
-		rewardfunc:    make(map[string]func([]MarkInt) float64),
 	}
 }
 
@@ -314,7 +311,7 @@ func (net *Net) NewExpTrans(label string, priority int, vanishable bool, rate fl
 	return tr
 }
 
-func (net *Net) NewGenTrans(label string, priority int, vanishable bool, dist *Distribution, policy GenTransPolicy) *GenTrans {
+func (net *Net) NewGenTrans(label string, priority int, vanishable bool, dist DistributionInterface, policy GenTransPolicy) *GenTrans {
 	tr := newGenTrans(label, 0, priority, vanishable, dist, policy)
 	net.genlist = append(net.genlist, tr)
 	net.translabel[label] = tr.Trans
@@ -344,10 +341,6 @@ func (net *Net) GetPlace(label string) (*Place, bool) {
 func (net *Net) GetTrans(label string) (*Trans, bool) {
 	result, ok := net.translabel[label]
 	return result, ok
-}
-
-func (net *Net) LenPlaceList() int {
-	return len(net.placelist)
 }
 
 func (net *Net) SetGuard(tr transInterface, str string, guard func([]MarkInt) bool) {
@@ -437,6 +430,16 @@ func (net *Net) sortTransList() {
 	})
 }
 
+func (net *Net) MakeMark(initmark map[string]MarkInt) []MarkInt {
+	m := make([]MarkInt, len(net.placelist), len(net.placelist))
+	for k, v := range initmark {
+		if place, ok := net.placelabel[k]; ok {
+			m[place.index] = v
+		}
+	}
+	return m
+}
+
 func (net *Net) ToPNDot(writer io.Writer) {
 	pnbuf := newpndot(writer)
 	transtype := makeTransType(net)
@@ -479,21 +482,21 @@ func newpndot(writer io.Writer) *pndot {
 	}
 }
 
-func makeTransType(net *Net) map[*Trans]int {
-	transtype := make(map[*Trans]int)
+func makeTransType(net *Net) map[*Trans]TransType {
+	transtype := make(map[*Trans]TransType)
 	for _, tr := range net.immlist {
-		transtype[tr.Trans] = 1 // IMM
+		transtype[tr.Trans] = TransIMM
 	}
 	for _, tr := range net.explist {
-		transtype[tr.Trans] = 2 // EXP
+		transtype[tr.Trans] = TransEXP
 	}
 	for _, tr := range net.genlist {
-		transtype[tr.Trans] = 3 // GEN
+		transtype[tr.Trans] = TransGEN
 	}
 	return transtype
 }
 
-func (b *pndot) drawPlace(net *Net, transtype map[*Trans]int, p *Place) {
+func (b *pndot) drawPlace(net *Net, transtype map[*Trans]TransType, p *Place) {
 	if _, ok := b.visitedPlace[p]; ok == true {
 		return
 	}
@@ -507,16 +510,16 @@ func (b *pndot) drawPlace(net *Net, transtype map[*Trans]int, p *Place) {
 	}
 }
 
-func (b *pndot) drawTrans(net *Net, transtype map[*Trans]int, tr *Trans) {
+func (b *pndot) drawTrans(net *Net, transtype map[*Trans]TransType, tr *Trans) {
 	if _, ok := b.visitedTrans[tr]; ok == true {
 		return
 	}
 	switch transtype[tr] {
-	case 1: // IMM
+	case TransIMM:
 		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.02, style=\"filled,dashed\"];\n", tr, tr.makeLabel(net))
-	case 2: // EXP
+	case TransEXP:
 		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2];\n", tr, tr.makeLabel(net))
-	case 3: // GEN
+	case TransGEN:
 		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2, style=\"filled\"];\n", tr, tr.makeLabel(net))
 	default:
 		panic("error")
@@ -530,7 +533,7 @@ func (b *pndot) drawTrans(net *Net, transtype map[*Trans]int, tr *Trans) {
 	}
 }
 
-func (b *pndot) drawInArc(net *Net, transtype map[*Trans]int, arc *InArc) {
+func (b *pndot) drawInArc(net *Net, transtype map[*Trans]TransType, arc *InArc) {
 	if _, ok := b.visitedInArc[arc]; ok == true {
 		return
 	}
@@ -544,7 +547,7 @@ func (b *pndot) drawInArc(net *Net, transtype map[*Trans]int, arc *InArc) {
 	b.drawTrans(net, transtype, arc.dest)
 }
 
-func (b *pndot) drawOutArc(net *Net, transtype map[*Trans]int, arc *OutArc) {
+func (b *pndot) drawOutArc(net *Net, transtype map[*Trans]TransType, arc *OutArc) {
 	if _, ok := b.visitedOutArc[arc]; ok == true {
 		return
 	}
@@ -555,7 +558,6 @@ func (b *pndot) drawOutArc(net *Net, transtype map[*Trans]int, arc *OutArc) {
 }
 
 func (place *Place) makeLabel(net *Net) string {
-	// TODO
 	return place.label
 }
 

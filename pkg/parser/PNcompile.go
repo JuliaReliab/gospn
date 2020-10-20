@@ -335,7 +335,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	// default values
 	priority := 0
 	vanishable := true
-	dist := petrinet.NewDistribution("default", []float64{})
+	dist := petrinet.NewDistribution("constant", 1)
 	policy := petrinet.GenTransPolicyPRD
 	var guardexpr ASTExpr
 	for attr, optval := range node.options {
@@ -359,7 +359,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					}
 					params = append(params, float64(parameter))
 				}
-				dist = petrinet.NewDistribution(string(name), params)
+				dist = petrinet.NewDistribution(string(name), params...)
 			case ASTExpr:
 				if astval, err := expr.Eval(env); err == nil {
 					if val, err := astval.GetDist(); err == nil {
@@ -379,7 +379,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 							}
 							params = append(params, float64(parameter))
 						}
-						dist = petrinet.NewDistribution(string(name), params)
+						dist = petrinet.NewDistribution(string(name), params...)
 					} else {
 						logger.Panic(err)
 					}
@@ -667,12 +667,8 @@ func makeNet(labels []string, env ASTEnv) (*petrinet.Net, []petrinet.MarkInt) {
 
 	net.Finalize()
 
-	m := make([]petrinet.MarkInt, net.LenPlaceList(), net.LenPlaceList())
-	for k, v := range initmark {
-		if place, ok := net.GetPlace(k); ok {
-			m[place.GetIndex()] = v
-		}
-	}
+	m := net.MakeMark(initmark)
+
 	logger.Print("Done: compile")
 	return net, m
 }
