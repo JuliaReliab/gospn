@@ -1,3 +1,9 @@
+# gospn 0.9.2
+
+- enhancement: add option `-p` to put additional definition
+- enhancement: remove the prefix `rwd`
+- enhancement: implement sim
+
 # gospn 0.9.1
 
 - bugfix: the styple of IMM and EXP trans in view mode
