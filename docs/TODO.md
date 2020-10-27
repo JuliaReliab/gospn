@@ -1,6 +1,5 @@
 ### Implementation
 
-- Testing for Update
 - simulation: replace rng to SFMT? Mernenne?
 
 ### Enhancement

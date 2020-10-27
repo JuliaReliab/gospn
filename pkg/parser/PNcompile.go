@@ -116,6 +116,18 @@ func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrin
 	}
 }
 
+// Create au update function
+func createUpdateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) []petrinet.MarkInt {
+	return func(mark []petrinet.MarkInt) []petrinet.MarkInt {
+		if _, err := expr.EvalWithMark(net, mark, env); err == nil {
+			return mark
+		} else {
+			logger.Panic(err)
+		}
+		return []petrinet.MarkInt{}
+	}
+}
+
 func createPlace(net *petrinet.Net, initmark map[string]petrinet.MarkInt,
 	label string, node *PNNode, env ASTEnv) *petrinet.Place {
 	max := petrinet.MarkInt(255) // default value
@@ -163,6 +175,7 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	weight := 1.0
 	var guardexpr ASTExpr
 	var weightexpr ASTExpr
+	var updateexpr ASTExpr
 	for attr, optval := range node.options {
 		switch attr {
 		case "weight":
@@ -224,6 +237,10 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 			if expr, ok := optval.(ASTExpr); ok {
 				guardexpr = expr
 			}
+		case "update":
+			if expr, ok := optval.(ASTExpr); ok {
+				updateexpr = expr
+			}
 		default:
 		}
 	}
@@ -238,10 +255,16 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	if weightexpr != nil {
 		net.SetWeightRate(tr, createRateFunc(weightexpr, net, env))
 	}
+	if updateexpr != nil {
+		fstr, err := getString(updateexpr, env, "update of "+label)
+		if err != nil {
+			logger.Panic("Fail to create updatefunc of ", label, " ", updateexpr)
+		}
+		net.SetUpdate(tr, fstr, createUpdateFunc(updateexpr, net, env))
+	}
 	env[label] = tr
 	logger.Print("Create immtrans: label ", label, " priority ", priority, " vanishable ", vanishable, " weight ", weight, " guard ", guardexpr)
 	return tr
-
 }
 
 func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *petrinet.ExpTrans {
@@ -251,6 +274,7 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	rate := 1.0
 	var guardexpr ASTExpr
 	var rateexpr ASTExpr
+	var updateexpr ASTExpr
 	for attr, optval := range node.options {
 		switch attr {
 		case "rate":
@@ -312,6 +336,10 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 			if expr, ok := optval.(ASTExpr); ok {
 				guardexpr = expr
 			}
+		case "update":
+			if expr, ok := optval.(ASTExpr); ok {
+				updateexpr = expr
+			}
 		default:
 		}
 	}
@@ -326,6 +354,13 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	if rateexpr != nil {
 		net.SetWeightRate(tr, createRateFunc(rateexpr, net, env))
 	}
+	if updateexpr != nil {
+		fstr, err := getString(updateexpr, env, "update of "+label)
+		if err != nil {
+			logger.Panic("Fail to create updatefunc of ", label, " ", updateexpr)
+		}
+		net.SetUpdate(tr, fstr, createUpdateFunc(updateexpr, net, env))
+	}
 	env[label] = tr
 	logger.Print("Create exptrans: label ", label, " priority ", priority, " vanishable ", vanishable, " rate ", rate, " guard ", guardexpr, " rate ", rateexpr)
 	return tr
@@ -338,6 +373,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	dist := petrinet.NewDistribution("constant", 1)
 	policy := petrinet.GenTransPolicyPRD
 	var guardexpr ASTExpr
+	var updateexpr ASTExpr
 	for attr, optval := range node.options {
 		switch attr {
 		case "dist":
@@ -455,6 +491,10 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 			if expr, ok := optval.(ASTExpr); ok {
 				guardexpr = expr
 			}
+		case "update":
+			if expr, ok := optval.(ASTExpr); ok {
+				updateexpr = expr
+			}
 		default:
 		}
 	}
@@ -465,6 +505,13 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 			logger.Panic("Fail to create guardfunc of ", label, " ", guardexpr)
 		}
 		net.SetGuard(tr, fstr, createGuardFunc(guardexpr, net, env))
+	}
+	if updateexpr != nil {
+		fstr, err := getString(updateexpr, env, "update of "+label)
+		if err != nil {
+			logger.Panic("Fail to create updatefunc of ", label, " ", updateexpr)
+		}
+		net.SetUpdate(tr, fstr, createUpdateFunc(updateexpr, net, env))
 	}
 	env[label] = tr
 	logger.Print("Create gentrans: label ", label, " priority ", priority, " vanishable ", vanishable, " dist ", dist, " policy ", policy, " guard ", guardexpr)

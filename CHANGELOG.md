@@ -1,3 +1,7 @@
+# gospn 0.9.3
+
+- enhancement: Implement updata function
+
 # gospn 0.9.2
 
 - enhancement: add option `-p` to put additional definition
