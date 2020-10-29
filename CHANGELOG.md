@@ -1,3 +1,11 @@
+# gospn 0.9.4
+
+- bugfix: add rates for transitions with the same source and destination
+
+# gospn 0.9.3
+
+- enhancement: Implement updata function
+
 # gospn 0.9.2
 
 - enhancement: add option `-p` to put additional definition
