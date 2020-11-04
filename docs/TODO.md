@@ -1,7 +1,3 @@
-### Implementation
-
-- simulation: replace rng to SFMT? Mernenne?
-
 ### Enhancement
 
 - extend mark group by using a reward function
