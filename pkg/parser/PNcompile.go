@@ -2,6 +2,7 @@ package parser
 
 import (
 	"../petrinet"
+	"fmt"
 )
 
 // Get an integer from ASTExpr. When AST cannot be converted to integer,
@@ -125,6 +126,26 @@ func createUpdateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrin
 			logger.Panic(err)
 		}
 		return []petrinet.MarkInt{}
+	}
+}
+
+// Create a closure for group function
+func createGroupFunc(_ string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) string {
+	return func(mark []petrinet.MarkInt) string {
+		if result, err := expr.EvalWithMark(net, mark, env); err == nil {
+			if val, err := result.GetInt(); err == nil {
+				return fmt.Sprintf("%d", val)
+			} else if val, err := result.GetBool(); err == nil {
+				return fmt.Sprintf("%t", val)
+			} else if val, err := result.GetString(); err == nil {
+				return fmt.Sprintf("%s", val)
+			} else {
+				logger.Panic(err)
+			}
+		} else {
+			logger.Panic(err)
+		}
+		return ""
 	}
 }
 
@@ -666,6 +687,30 @@ func createReward(net *petrinet.Net, label string, node *PNNode, env ASTEnv) {
 	logger.Print("Create reward: label ", label, " formula ", f)
 }
 
+func createGroup(net *petrinet.Net, label string, node *PNNode, env ASTEnv) {
+	var f ASTExpr
+	for attr, optval := range node.options {
+		switch attr {
+		case "formula":
+			switch expr := optval.(type) {
+			case int:
+				f = MakeValue(expr)
+			case bool:
+				f = MakeValue(expr)
+			case string:
+				f = MakeValue(expr)
+			case ASTExpr:
+				f = expr
+			default:
+				logger.Panicf("type mismatch in %s of %s", attr, "Group")
+			}
+		default:
+		}
+	}
+	net.AddMarkGroupString(createGroupFunc(label, f, net, env))
+	logger.Print("Create group: label ", label, " formula ", f)
+}
+
 func makeNet(labels []string, env ASTEnv) (*petrinet.Net, []petrinet.MarkInt) {
 	logger.Print("Start compile ...")
 	net := petrinet.NewNet()
@@ -694,6 +739,8 @@ func makeNet(labels []string, env ASTEnv) (*petrinet.Net, []petrinet.MarkInt) {
 			switch node.options["type"] {
 			case "reward":
 				createReward(net, label, node, env)
+			case "group":
+				createGroup(net, label, node, env)
 			default:
 			}
 		}

@@ -135,28 +135,28 @@ func cmdmark(args []string) {
 		dim, nnz, rowind, colptr, val := m.Get()
 		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
 		matfile.AddElement(data)
-		fmt.Printf("Write transition matrix %s\n", label)
+		// fmt.Printf("Write transition matrix %s\n", label)
 	}
 	for tr, m := range immmat {
 		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
 		dim, nnz, rowind, colptr, val := m.Get()
 		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
 		matfile.AddElement(data)
-		fmt.Printf("Write transition matrix %s\n", label)
+		// fmt.Printf("Write transition matrix %s\n", label)
 	}
 	for tr, m := range genmat {
 		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
 		dim, nnz, rowind, colptr, val := m.Get()
 		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
 		matfile.AddElement(data)
-		fmt.Printf("Write transition matrix %s\n", label)
+		// fmt.Printf("Write transition matrix %s\n", label)
 	}
 	iv := mg.InitVector()
 	for g, v := range iv {
 		label := fmt.Sprintf("init%s", grouplabel[g])
 		data := matout.CreateMATLABMatrix(len(v), label, v)
 		matfile.AddElement(data)
-		fmt.Printf("Write init vector %s\n", label)
+		// fmt.Printf("Write init vector %s\n", label)
 	}
 	rv := mg.RewardVector()
 	for rewardlabel, rv := range rv {
@@ -164,7 +164,7 @@ func cmdmark(args []string) {
 			label := fmt.Sprintf("%s%s", rewardlabel, grouplabel[g])
 			data := matout.CreateMATLABMatrix(len(v), label, v)
 			matfile.AddElement(data)
-			fmt.Printf("Write reward vector %s\n", label)
+			// fmt.Printf("Write reward vector %s\n", label)
 		}
 	}
 

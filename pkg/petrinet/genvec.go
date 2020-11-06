@@ -7,12 +7,19 @@ import (
 type GenVec struct {
 	n        int
 	vecSlice []TransStatus
+	label    string
 }
 
 func newGenVec(v []TransStatus) *GenVec {
+	result := make([]string, len(v))
+	for i, x := range v {
+		result[i] = x.String()
+	}
+	label := "{" + strings.Join(result, ",") + "}"
 	return &GenVec{
 		n:        len(v),
 		vecSlice: v,
+		label:    label,
 	}
 }
 
@@ -30,11 +37,7 @@ func (g *GenVec) IsAnyEnabled() bool {
 }
 
 func (g *GenVec) String() string {
-	result := make([]string, g.n)
-	for i := 0; i < g.n; i++ {
-		result[i] = g.vecSlice[i].String()
-	}
-	return "{" + strings.Join(result, ",") + "}"
+	return g.label
 }
 
 // GenVecGenerator

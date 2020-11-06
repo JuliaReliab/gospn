@@ -2,8 +2,6 @@
   bitcoin
 */
 
-maxblk = 2
-
 place PblkA
 place PconfirmA
 
@@ -45,6 +43,7 @@ arc TlooseB to Pclear
 glooseA = #PconfirmB > #PblkA + #PconfirmA
 glooseB = #PconfirmA > #PblkB + #PconfirmB
 
+maxblk = 2
 mu1 = 1/10
 mu2 = 1/10
 lambda1 = 1/0.1
@@ -53,9 +52,13 @@ lambda2 = 1/0.1
 reward A #PblkA + #PconfirmA
 reward B #PblkB + #PconfirmB
 reward winA ifelse(?TlooseA, 0, 1)
-//reward winB ifelse(?TlooseB, 0, 1)
+reward winB ifelse(?TlooseB, 0, 1)
 
 reward rwd1 #PblkA + #PconfirmA
 reward rwd2 #PblkB + #PconfirmB
 reward rwd3 #PblkA
 
+//block blkA #PblkA + #PconfirmA
+//block blkB #PblkB + #PconfirmB
+//block winA ?TlooseB
+//block winB ?TlooseA
