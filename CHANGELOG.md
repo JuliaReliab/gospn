@@ -1,3 +1,7 @@
+# gospn 0.10.0
+
+- enhancement: generate block matrix
+
 # gospn 0.9.5
 
 - bugfix: fix rewards in sim (Do not use sim before this version)
