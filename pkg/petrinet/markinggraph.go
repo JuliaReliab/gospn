@@ -407,11 +407,12 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 	})
 	// log.Print("after ", elems)
 	colptr := make([]int, n+1)
-	rowind := make([]int, len(elems))
-	value := make([]float64, len(elems))
+	rowind := make([]int, 0, len(elems))
+	value := make([]float64, 0, len(elems))
 	z := 0
 	j := 0
 	colptr[j] = z
+	previ, prevj := -1, -1
 	for _, e := range elems {
 		if j != e.j {
 			for u := j + 1; u <= e.j; u++ {
@@ -419,9 +420,14 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 			}
 			j = e.j
 		}
-		rowind[z] = e.i
-		value[z] = e.val
-		z += 1
+		if e.i == previ && e.j == prevj {
+			value[z-1] += e.val
+		} else {
+			rowind = append(rowind, e.i)
+			value = append(value, e.val)
+			previ, prevj = e.i, e.j
+			z += 1
+		}
 	}
 	for u := j + 1; u <= n; u++ {
 		colptr[u] = z

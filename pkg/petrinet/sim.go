@@ -1,9 +1,9 @@
 package petrinet
 
 import (
-	// "log"
 	"encoding/json"
 	"fmt"
+	// "log"
 	"math"
 	"strings"
 )
@@ -236,20 +236,17 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 func (sim *PNSimulation) calcReward(events []event, rfunc func([]MarkInt) float64) (float64, float64, float64) {
 	irwd := 0.0
 	crwd := 0.0
-	lastrwd := 0.0
 	prevtime := 0.0
+	r := 0.0
 	for _, e := range events {
-		r := rfunc(e.mark)
+		crwd += r * (e.time - prevtime)
+		prevtime = e.time
+		r = rfunc(e.mark)
 		if e.tr != nil {
 			irwd += r
 		}
-		crwd += r * (e.time - prevtime)
-		if e.time == sim.EndingTime {
-			lastrwd = r
-		}
-		prevtime = e.time
 	}
-	return irwd, crwd, lastrwd
+	return irwd, crwd, r
 }
 
 func (sim *PNSimulation) RunAll(init []MarkInt, rng RandomNumberGenerator) (map[string][]float64, map[string][]float64, map[string][]float64, []float64, []int32) {

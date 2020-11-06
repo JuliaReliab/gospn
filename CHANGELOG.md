@@ -1,3 +1,12 @@
+# gospn 0.9.5
+
+- bugfix: fix rewards in sim (Do not use sim before this version)
+- enhancement: Use MT64
+
+# gospn 0.9.4
+
+- bugfix: add rates for transitions with the same source and destination
+
 # gospn 0.9.3
 
 - enhancement: Implement updata function

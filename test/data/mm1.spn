@@ -1,0 +1,15 @@
+
+place Pbuf
+
+exp Tarrival (guard = #Pbuf < K+1, rate = lambda)
+exp Tservice (guard = #Pbuf < K+1, rate = mu)
+exp Tfail (guard = #Pbuf < K+1 && #Pbuf >= 1, rate = rho)
+
+arc Pbuf to Tservice
+arc Tarrival to Pbuf
+arc Pbuf to Tfail (multi = #Pbuf)
+
+K = 5
+lambda = 0.1
+mu = 1.0
+rho = 0.001

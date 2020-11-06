@@ -2,6 +2,7 @@ package main
 
 import (
 	"../pkg/matout"
+	"../pkg/mt"
 	"../pkg/parser"
 	"../pkg/petrinet"
 	"bufio"
@@ -9,7 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
+	// "math/rand"
 	"os"
 	"time"
 )
@@ -267,7 +268,9 @@ func cmdsim(args []string) {
 		panic(err)
 	}
 	sim := petrinet.NewPNSimulation(net, config)
-	rng := rand.New(rand.NewSource(*seed))
+	rng := mt.NewMT64()
+	// rng := rand.New(rand.NewSource(0))
+	rng.Seed(*seed)
 
 	fmt.Print("Run simulation...")
 	start := time.Now()
@@ -338,7 +341,9 @@ func cmdtest(args []string) {
 		NumOfFiring: int32(*maxcount),
 	}
 	sim := petrinet.NewPNSimulation(net, config)
-	rng := rand.New(rand.NewSource(*seed))
+	rng := mt.NewMT64()
+	// rng := rand.New(rand.NewSource(0))
+	rng.Seed(*seed)
 	path, _, _ := sim.RunSimulation(imark, rng)
 	for i, x := range path {
 		fmt.Println(i, x.String(net))
