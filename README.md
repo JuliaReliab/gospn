@@ -159,21 +159,21 @@ place Pcr
 place Pc (init = n)
 place Pfc
 
-exp Thr (guard = g2)
-exp Thf (rate = r1, guard = g2)
+exp Thr (rate = Thr.rate)
+exp Thf (guard = g2, rate = r1)
 exp Tbchf (guard = g1, rate = r1)
 exp Tbwhf (rate = r1)
-exp Tchm
-exp Twhm
-exp Twr (guard = g4)
-exp Thcm
-exp Thwm
+exp Tchm (rate = Tchm.rate)
+exp Twhm (rate = Twhm.rate)
+exp Twr (guard = g4, rate = Twr.rate)
+exp Thcm (rate = Thcm.rate)
+exp Thwm (rate = Thwm.rate)
 exp Twf (guard = g3, rate = r2)
 exp Tbcwf (rate = r2)
 exp Tcf (rate = r3)
-exp Tcwm
-exp Tcr (guard = g5)
-exp Twcm
+exp Tcwm (rate = Tcwm.rate)
+exp Tcr (guard = g5, rate = Tcr.rate)
+exp Twcm (rate = Twcm.rate)
 
 imm tcr1
 imm twr1
@@ -260,11 +260,11 @@ Thr.rate = ifelse(#Pfh <= nr, #Pfh * mu, nr * mu)
 Twr.rate = ifelse(#Pfw + #Pbw <= nr, mu*(#Pfw + #Pbw), nr * mu)
 Tcr.rate = ifelse(#Pfc + #Pbc_d + #Pbc_dd <= nr, (#Pfc + #Pbc_d + #Pbc_dd) * mu, nr * mu)
 
-Tchm.rate = #Pchm * gam.ch
 Twhm.rate = #Pwhm * gam.wh
+Tchm.rate = #Pchm * gam.ch
+Tcwm.rate = #Pcwm * gam.cw
 Thcm.rate = #Phcm * gam.hc
 Thwm.rate = #Phwm * gam.hw
-Tcwm.rate = #Pcwm * gam.cw
 Twcm.rate = #Pwcm * gam.wc
 
 reward rwd1 #Ph
