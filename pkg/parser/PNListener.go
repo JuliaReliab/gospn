@@ -36,6 +36,10 @@ func (l *PNListener) ExitReward_declaration(c *Reward_declarationContext) {
 	l.builder.buildReward(c.id.GetText())
 }
 
+func (l *PNListener) ExitGroup_declaration(c *Group_declarationContext) {
+	l.builder.buildGroup(c.id.GetText())
+}
+
 func (l *PNListener) ExitLabel_expression(c *Label_expressionContext) {
 	l.builder.setNodeOption(c.id.GetText())
 }

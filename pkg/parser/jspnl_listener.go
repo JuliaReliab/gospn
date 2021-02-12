@@ -26,6 +26,9 @@ type JSPNLListener interface {
 	// EnterReward_declaration is called when entering the reward_declaration production.
 	EnterReward_declaration(c *Reward_declarationContext)
 
+	// EnterGroup_declaration is called when entering the group_declaration production.
+	EnterGroup_declaration(c *Group_declarationContext)
+
 	// EnterNode_options is called when entering the node_options production.
 	EnterNode_options(c *Node_optionsContext)
 
@@ -91,6 +94,9 @@ type JSPNLListener interface {
 
 	// ExitReward_declaration is called when exiting the reward_declaration production.
 	ExitReward_declaration(c *Reward_declarationContext)
+
+	// ExitGroup_declaration is called when exiting the group_declaration production.
+	ExitGroup_declaration(c *Group_declarationContext)
 
 	// ExitNode_options is called when exiting the node_options production.
 	ExitNode_options(c *Node_optionsContext)

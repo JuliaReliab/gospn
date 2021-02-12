@@ -15,6 +15,7 @@ declaration
     : node_declaration
     | arc_declaration
     | reward_declaration
+    | group_declaration
     ;
 
 node_declaration
@@ -29,6 +30,10 @@ arc_declaration
 
 reward_declaration
     : 'reward' id=ID expression
+    ;
+
+group_declaration
+    : 'block' id=ID expression
     ;
 
 node_options

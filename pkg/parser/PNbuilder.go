@@ -148,6 +148,17 @@ func (b *NetBuilder) buildReward(label string) {
 	logger.Print("Create reward ", label, " = ", f)
 }
 
+func (b *NetBuilder) buildGroup(label string) {
+	node := b.nodestack.pop()
+	node.options["type"] = "group"
+	node.options["label"] = label
+	f := b.aststack.pop()
+	node.options["formula"] = f
+	b.labels = append(b.labels, label)
+	b.env[label] = node
+	logger.Print("Create group ", label, " = ", f)
+}
+
 func (b *NetBuilder) buildAssignExpression(label string) {
 	right := b.aststack.pop()
 	b.labels = append(b.labels, label)

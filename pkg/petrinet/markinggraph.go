@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -57,31 +58,47 @@ const (
 type Group struct {
 	gtype GroupType
 	gv    *GenVec
+	label string
+}
+
+func newGroup(gtype GroupType, gv *GenVec, label string) *Group {
+	return &Group{
+		gtype: gtype,
+		gv:    gv,
+		label: label,
+	}
 }
 
 func (g *Group) String() string {
-	return fmt.Sprintf("[%d %s]", g.gtype, g.gv)
+	return fmt.Sprintf("[%d %s %s]", g.gtype, g.gv, g.label)
 }
 
 // A generator to make a unique instance of Group
-type groupGenerator map[Group]*Group
+type groupGenerator struct {
+	key  []byte
+	data map[string]*Group
+}
 
 func newGroupGenerator() *groupGenerator {
-	m := make(groupGenerator)
-	return &m
+	return &groupGenerator{
+		key:  make([]byte, 0, 20),
+		data: make(map[string]*Group),
+	}
 }
 
 // The method to generate a unique instance of Group
-func (s *groupGenerator) generate(g GroupType, gv *GenVec) *Group {
-	m := Group{
-		gtype: g,
-		gv:    gv,
-	}
-	if mp, ok := (*s)[m]; ok {
-		return mp
+func (g *groupGenerator) generate(gtype GroupType, gv *GenVec, label string) *Group {
+	g.key = g.key[:0]
+	g.key = append(g.key, strconv.Itoa(int(gtype))...)
+	g.key = append(g.key, gv.String()...)
+	g.key = append(g.key, label...)
+	key := string(g.key)
+	if mg, ok := g.data[key]; ok {
+		return mg
 	} else {
-		(*s)[m] = &m
-		return &m
+		newmg := newGroup(gtype, gv, label)
+		g.data[key] = newmg
+		return newmg
 	}
 }
 
@@ -133,6 +150,14 @@ func CreateMarkingGraphWithDFSTangible(net *Net, imark []MarkInt) *MarkingGraph 
 	return CreateMarkingGraph(net, imark, new(dfstangible))
 }
 
+func makeGroupString(net *Net, m []MarkInt) string {
+	str := make([]string, 0, len(net.markgroupstring))
+	for _, f := range net.markgroupstring {
+		str = append(str, f(m))
+	}
+	return strings.Join(str, ",")
+}
+
 // The method to create a marking graph. This is only called from CreateMarkingGraph
 func newMarkingGraph(net *Net,
 	m0 *Mark,
@@ -145,8 +170,10 @@ func newMarkingGraph(net *Net,
 	generator := newGroupGenerator()
 	groupToMark := make(map[*Group][]*Mark)
 	markToGroup := make(map[*Mark]*Group)
+	markToGroupString := make(map[*Mark]string)
 	for _, m := range marks {
-		g := generator.generate(markToGroupType[m], markToGenvec[m])
+		markToGroupString[m] = makeGroupString(net, m.toSlice())
+		g := generator.generate(markToGroupType[m], markToGenvec[m], markToGroupString[m])
 		markToGroup[m] = g
 		if mset, ok := groupToMark[g]; ok {
 			groupToMark[g] = append(mset, m)
@@ -178,7 +205,11 @@ func newMarkingGraph(net *Net,
 				return si[k] < sj[k]
 			}
 		}
-		return groups[i].gtype < groups[j].gtype
+		if groups[i].label == groups[j].label {
+			return groups[i].gtype < groups[j].gtype
+		} else {
+			return groups[i].label < groups[j].label
+		}
 	})
 
 	// make grouplinks
@@ -188,15 +219,15 @@ func newMarkingGraph(net *Net,
 		var tr GroupTrans
 		if l.tt == TransGEN {
 			tr = GroupTrans{
-				src:       generator.generate(markToGroupType[l.src], markToGenvec[l.src]),
-				dest:      generator.generate(markToGroupType[l.dest], markToGenvec[l.dest]),
+				src:       generator.generate(markToGroupType[l.src], markToGenvec[l.src], markToGroupString[l.src]),
+				dest:      generator.generate(markToGroupType[l.dest], markToGenvec[l.dest], markToGroupString[l.dest]),
 				transtype: TransGEN,
 				gentrans:  l.tr.getTrans(),
 			}
 		} else {
 			tr = GroupTrans{
-				src:       generator.generate(markToGroupType[l.src], markToGenvec[l.src]),
-				dest:      generator.generate(markToGroupType[l.dest], markToGenvec[l.dest]),
+				src:       generator.generate(markToGroupType[l.src], markToGenvec[l.src], markToGroupString[l.src]),
+				dest:      generator.generate(markToGroupType[l.dest], markToGenvec[l.dest], markToGroupString[l.dest]),
 				transtype: l.tt,
 				gentrans:  nil,
 			}
@@ -499,11 +530,16 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 }
 
 func (mg *MarkingGraph) GroupLabels() map[*Group]string {
+	type GG struct {
+		gv    *GenVec
+		label string
+	}
 	labels := make(map[*Group]string)
-	g2i := make(map[*GenVec]int)
+	g2i := make(map[GG]int)
 	count := 0
 	for _, g := range mg.groups {
-		if v, ok := g2i[g.gv]; ok {
+		gg := GG{gv: g.gv, label: g.label}
+		if v, ok := g2i[gg]; ok {
 			switch g.gtype {
 			case IMMGroup:
 				labels[g] = fmt.Sprintf("I%d", v)
@@ -515,7 +551,7 @@ func (mg *MarkingGraph) GroupLabels() map[*Group]string {
 				log.Panic("Unknown grouptype")
 			}
 		} else {
-			g2i[g.gv] = count
+			g2i[gg] = count
 			switch g.gtype {
 			case IMMGroup:
 				labels[g] = fmt.Sprintf("I%d", count)
@@ -632,15 +668,15 @@ func (mg *MarkingGraph) Summary() {
 		case IMMGroup:
 			immstates += len(mg.groupToMark[g])
 			immnnz += nnz[g]
-			fmt.Fprintf(writer, "  # of IMM states     (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
+			fmt.Fprintf(writer, "  # of IMM states     (%3s) : %d (%d) %s\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g], g.label)
 		case GENGroup:
 			genstates += len(mg.groupToMark[g])
 			gennnz += nnz[g]
-			fmt.Fprintf(writer, "  # of EXP/GEN states (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
+			fmt.Fprintf(writer, "  # of EXP/GEN states (%3s) : %d (%d) %s\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g], g.label)
 		case ABSGroup:
 			absstates += len(mg.groupToMark[g])
 			absnnz += nnz[g]
-			fmt.Fprintf(writer, "  # of ABS states     (%3s) : %d (%d)\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g])
+			fmt.Fprintf(writer, "  # of ABS states     (%3s) : %d (%d) %s\n", grouplabel[g], len(mg.groupToMark[g]), nnz[g], g.label)
 		default:
 			log.Panic("Unknown grouptype")
 		}

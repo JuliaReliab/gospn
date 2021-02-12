@@ -249,44 +249,46 @@ func newOutArc(src transInterface, dest placeInterface, multiplicity MarkInt) *O
 
 // The structure for a petrinet.
 type Net struct {
-	placelist     []*Place                             // the list of places
-	translist     []*Trans                             // the list of transitions
-	immlist       []*ImmTrans                          // the list of imm transitions
-	explist       []*ExpTrans                          // the list of exp transitons
-	genlist       []*GenTrans                          // the list of gen transitions
-	guards        map[*Trans]func([]MarkInt) bool      // guard functions
-	updates       map[*Trans]func([]MarkInt) []MarkInt // update functions
-	infunc        map[*InArc]func([]MarkInt) MarkInt   // multiplicity functions
-	outfunc       map[*OutArc]func([]MarkInt) MarkInt  // multiplicity functions
-	ratefunc      map[*Trans]func([]MarkInt) float64   // weight and rate functions
-	rewardfunc    map[string]func([]MarkInt) float64   // reward functions
-	placelabel    map[string]*Place                    // labels for places
-	translabel    map[string]*Trans                    // labels for trans
-	guardstring   map[*Trans]string                    // string for guard functions
-	updatesstring map[*Trans]string                    // string for guard functions
-	infuncstring  map[*InArc]string                    // multiplicity functions
-	outfuncstring map[*OutArc]string                   // multiplicity functions
+	placelist       []*Place                             // the list of places
+	translist       []*Trans                             // the list of transitions
+	immlist         []*ImmTrans                          // the list of imm transitions
+	explist         []*ExpTrans                          // the list of exp transitons
+	genlist         []*GenTrans                          // the list of gen transitions
+	guards          map[*Trans]func([]MarkInt) bool      // guard functions
+	updates         map[*Trans]func([]MarkInt) []MarkInt // update functions
+	infunc          map[*InArc]func([]MarkInt) MarkInt   // multiplicity functions
+	outfunc         map[*OutArc]func([]MarkInt) MarkInt  // multiplicity functions
+	ratefunc        map[*Trans]func([]MarkInt) float64   // weight and rate functions
+	rewardfunc      map[string]func([]MarkInt) float64   // reward functions
+	placelabel      map[string]*Place                    // labels for places
+	translabel      map[string]*Trans                    // labels for trans
+	guardstring     map[*Trans]string                    // string for guard functions
+	updatesstring   map[*Trans]string                    // string for guard functions
+	infuncstring    map[*InArc]string                    // multiplicity functions
+	outfuncstring   map[*OutArc]string                   // multiplicity functions
+	markgroupstring []func([]MarkInt) string             // function to generate string for groups
 }
 
 func NewNet() *Net {
 	return &Net{
-		placelist:     make([]*Place, 0),
-		translist:     make([]*Trans, 0),
-		immlist:       make([]*ImmTrans, 0),
-		explist:       make([]*ExpTrans, 0),
-		genlist:       make([]*GenTrans, 0),
-		guards:        make(map[*Trans]func([]MarkInt) bool),
-		updates:       make(map[*Trans]func([]MarkInt) []MarkInt),
-		infunc:        make(map[*InArc]func([]MarkInt) MarkInt),
-		outfunc:       make(map[*OutArc]func([]MarkInt) MarkInt),
-		ratefunc:      make(map[*Trans]func([]MarkInt) float64),
-		rewardfunc:    make(map[string]func([]MarkInt) float64),
-		placelabel:    make(map[string]*Place),
-		translabel:    make(map[string]*Trans),
-		guardstring:   make(map[*Trans]string),
-		updatesstring: make(map[*Trans]string),
-		infuncstring:  make(map[*InArc]string),
-		outfuncstring: make(map[*OutArc]string),
+		placelist:       make([]*Place, 0),
+		translist:       make([]*Trans, 0),
+		immlist:         make([]*ImmTrans, 0),
+		explist:         make([]*ExpTrans, 0),
+		genlist:         make([]*GenTrans, 0),
+		guards:          make(map[*Trans]func([]MarkInt) bool),
+		updates:         make(map[*Trans]func([]MarkInt) []MarkInt),
+		infunc:          make(map[*InArc]func([]MarkInt) MarkInt),
+		outfunc:         make(map[*OutArc]func([]MarkInt) MarkInt),
+		ratefunc:        make(map[*Trans]func([]MarkInt) float64),
+		rewardfunc:      make(map[string]func([]MarkInt) float64),
+		placelabel:      make(map[string]*Place),
+		translabel:      make(map[string]*Trans),
+		guardstring:     make(map[*Trans]string),
+		updatesstring:   make(map[*Trans]string),
+		infuncstring:    make(map[*InArc]string),
+		outfuncstring:   make(map[*OutArc]string),
+		markgroupstring: make([]func([]MarkInt) string, 0),
 	}
 }
 
@@ -369,6 +371,10 @@ func (net *Net) SetOutArcMulti(arc *OutArc, str string, multi func([]MarkInt) Ma
 
 func (net *Net) SetReward(str string, rwd func([]MarkInt) float64) {
 	net.rewardfunc[str] = rwd
+}
+
+func (net *Net) AddMarkGroupString(f func([]MarkInt) string) {
+	net.markgroupstring = append(net.markgroupstring, f)
 }
 
 func (net *Net) Finalize() {

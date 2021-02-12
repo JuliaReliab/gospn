@@ -57,6 +57,12 @@ func (s *BaseJSPNLListener) EnterReward_declaration(ctx *Reward_declarationConte
 // ExitReward_declaration is called when production reward_declaration is exited.
 func (s *BaseJSPNLListener) ExitReward_declaration(ctx *Reward_declarationContext) {}
 
+// EnterGroup_declaration is called when production group_declaration is entered.
+func (s *BaseJSPNLListener) EnterGroup_declaration(ctx *Group_declarationContext) {}
+
+// ExitGroup_declaration is called when production group_declaration is exited.
+func (s *BaseJSPNLListener) ExitGroup_declaration(ctx *Group_declarationContext) {}
+
 // EnterNode_options is called when production node_options is entered.
 func (s *BaseJSPNLListener) EnterNode_options(ctx *Node_optionsContext) {}
 

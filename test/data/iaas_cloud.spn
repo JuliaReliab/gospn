@@ -14,8 +14,6 @@
      -imark "Ph:3,Pw:3,Pc:3"
 */
 
-n = 3
-
 place Ph (init = n)
 place Pfh
 place Pchm
@@ -117,6 +115,8 @@ r1 = #Ph * lambda_h
 r2 = #Pw * lambda_w
 r3 = #Pc * lambda_c
 
+n = 3
+
 lambda_h = 1/(500*60) // MTTF 500hrs
 lambda_w = 1/(1750*60) // MTTF 1750hrs
 lambda_c = 1/(2500*60) // MTTF 2500hrs
@@ -150,3 +150,8 @@ reward avail2 ifelse(#Ph >= 2, 1, 0)
 reward avail3 ifelse(#Ph >= 3, 1, 0)
 reward rwd5 ifelse(#Pw >= 1, 1, 0)
 reward rwd6 ifelse(#Pc >= 1, 1, 0)
+
+//block hot #Ph
+//block gravail1 ifelse(#Ph >= 1, 1, 0)
+//block gravail2 ifelse(#Ph >= 2, 1, 0)
+//block gravail3 ifelse(#Ph >= 3, 1, 0)
