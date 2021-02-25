@@ -1,10 +1,10 @@
 package main
 
 import (
-	"../pkg/matout"
-	"../pkg/mt"
-	"../pkg/parser"
-	"../pkg/petrinet"
+	"github.com/okamumu/gospn/pkg/matout"
+	"github.com/okamumu/gospn/pkg/mt"
+	"github.com/okamumu/gospn/pkg/parser"
+	"github.com/okamumu/gospn/pkg/petrinet"
 	"bufio"
 	"encoding/binary"
 	"flag"

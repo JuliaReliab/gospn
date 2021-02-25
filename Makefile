@@ -1,4 +1,4 @@
-GOSPN_VERSION=0.10.0
+GOSPN_VERSION=0.10.1
 
 deps:
 	go get github.com/antlr/antlr4/runtime/Go/antlr
@@ -35,6 +35,8 @@ build_darwin: deps
 	mkdir -p bin/darwin
 	GOOS=darwin GOARCH=amd64 go build -o bin/darwin/gospn cmd/main.go
 	cd bin/darwin && tar -czvf gospn-$(GOSPN_VERSION)-darwin-amd64.tar.gz gospn
+	GOOS=darwin GOARCH=arm64 go build -o bin/darwin/gospn cmd/main.go
+	cd bin/darwin && tar -czvf gospn-$(GOSPN_VERSION)-darwin-arm64.tar.gz gospn
 
 build_windows: deps
 	mkdir -p bin/windows

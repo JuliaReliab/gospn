@@ -1,3 +1,9 @@
+# gospn 0.10.1
+
+- build with go 1.16
+- use go.mod
+- provide Apple m1 binary
+
 # gospn 0.10.0
 
 - enhancement: generate block matrix

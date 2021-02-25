@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"../petrinet"
+	"github.com/okamumu/gospn/pkg/petrinet"
 	"fmt"
 )
 

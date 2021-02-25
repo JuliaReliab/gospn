@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"../petrinet"
+	"github.com/okamumu/gospn/pkg/petrinet"
 	"github.com/antlr/antlr4/runtime/Go/antlr"
 	"io/ioutil"
 	"log"
