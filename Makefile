@@ -1,4 +1,4 @@
-GOSPN_VERSION=0.10.1
+GOSPN_VERSION=0.10.2
 
 deps:
 	go get github.com/antlr/antlr4/runtime/Go/antlr
@@ -8,7 +8,7 @@ build: deps
 	mkdir -p bin
 	go build -o bin/gospn cmd/main.go
 
-test: test_matout test_petrinet test_parser
+test: test_matout test_petrinet test_parser test_mxgraph
 
 test_matout:
 	cd pkg/matout/ && go test -cover
@@ -18,6 +18,9 @@ test_petrinet:
 
 test_parser:
 	cd pkg/parser/ && go test -cover
+
+test_mxgraph:
+	cd pkg/mxgraph/ && go test -cover
 
 test_benchmark:
 	cd test/ &&\

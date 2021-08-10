@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/okamumu/gospn/pkg/matout"
-	"github.com/okamumu/gospn/pkg/mt"
-	"github.com/okamumu/gospn/pkg/parser"
-	"github.com/okamumu/gospn/pkg/petrinet"
 	"bufio"
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/okamumu/gospn/pkg/matout"
+	"github.com/okamumu/gospn/pkg/mt"
+	"github.com/okamumu/gospn/pkg/mxgraph"
+	"github.com/okamumu/gospn/pkg/parser"
+	"github.com/okamumu/gospn/pkg/petrinet"
 	"io/ioutil"
 	// "math/rand"
 	"os"
@@ -19,11 +20,12 @@ func usage() {
 	msg := `usage: gospn <command> [<args>]
 
 commands: (command help: gospn command -h)
-  view  Output a dot file to draw a Petrinet
-  mark  Make a marking graph and output matrices
-  sim   Monte Carlo simulation
-  test  Simulate a path of markings
-  help  Display this message`
+  mxgraph Output a definition file from XML of draw.io/diagrams.net
+  view    Output a dot file to draw a Petrinet
+  mark    Make a marking graph and output matrices
+  sim     Monte Carlo simulation
+  test    Simulate a path of markings
+  help    Display this message`
 
 	fmt.Println(msg)
 }
@@ -32,6 +34,8 @@ func main() {
 	mode := os.Args[1]
 	args := os.Args[2:]
 	switch mode {
+	case "mxgraph":
+		cmdmxgraph(args)
 	case "view":
 		cmdview(args)
 	case "mark":
@@ -44,6 +48,46 @@ func main() {
 		usage()
 	default:
 		usage()
+	}
+}
+
+func cmdmxgraph(args []string) {
+	infile := flag.String("i", "", "XML file of draw.io/diagrams.net")
+	outfile := flag.String("o", "", "Output file (Petrinet definition file)")
+	flag.CommandLine.Parse(args)
+
+	var defs []byte
+	if *infile != "" {
+		if b, err := ioutil.ReadFile(*infile); err == nil {
+			defs = b
+		} else {
+			panic(err)
+		}
+	} else {
+		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+			defs = b
+		} else {
+			panic(err)
+		}
+	}
+
+	if *outfile != "" {
+		file, err := os.Create(*outfile)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+		writer := bufio.NewWriter(file)
+		p := &mxgraph.PetriParser{}
+		cs := mxgraph.ParseXML(defs, p)
+		p.Write(writer, cs)
+		writer.Flush()
+	} else {
+		writer := bufio.NewWriter(os.Stdout)
+		p := &mxgraph.PetriParser{}
+		cs := mxgraph.ParseXML(defs, p)
+		p.Write(writer, cs)
+		writer.Flush()
 	}
 }
 
