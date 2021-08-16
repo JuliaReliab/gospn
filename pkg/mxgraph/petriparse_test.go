@@ -1,7 +1,7 @@
 package mxgraph
 
 import (
-	"os"
+	"fmt"
 	"testing"
 )
 
@@ -71,8 +71,11 @@ func TestPetri01(t *testing.T) {
 </mxGraphModel>
 `)
 	p := &PetriParser{}
-	cs := ParseXML(data, p)
-	p.Write(os.Stdout, cs)
+	b, err := p.ParseXML(data)
+	if err != nil {
+		t.Error("error")
+	}
+	fmt.Println(string(b))
 }
 
 func TestPetri02(t *testing.T) {
@@ -141,6 +144,9 @@ func TestPetri02(t *testing.T) {
 </mxGraphModel>
 `)
 	p := &PetriParser{}
-	cs := ParseXML(data, p)
-	p.Write(os.Stdout, cs)
+	b, err := p.ParseXML(data)
+	if err != nil {
+		t.Error("error")
+	}
+	fmt.Println(string(b))
 }

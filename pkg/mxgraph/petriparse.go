@@ -1,6 +1,7 @@
 package mxgraph
 
 import (
+	"bytes"
 	"fmt"
 	"html"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"strings"
 )
 
+type Component map[string]interface{}
 type Options map[string]string
 
 func (o Options) toString() string {
@@ -22,7 +24,36 @@ func (o Options) toString() string {
 
 type PetriParser struct{}
 
-func (p *PetriParser) GetNode(c *mxCell, s map[string]string) (Component, bool) {
+func (p *PetriParser) ParseXML(data []byte) ([]byte, error) {
+	comps := make([]Component, 0)
+	if cells, err := GetGraphModel(data); err == nil {
+		for _, x := range cells {
+			if comp, ok := getObj(&x); ok {
+				comps = append(comps, comp)
+			}
+		}
+		var buf bytes.Buffer
+		write(&buf, comps)
+		return buf.Bytes(), nil
+	} else {
+		return nil, err
+	}
+}
+
+func getObj(c *mxCell) (Component, bool) {
+	switch {
+	case c.Vertex:
+		return getNode(c)
+	case c.Edge:
+		return getArc(c)
+	default:
+		log.Println("Skip mxCell id: ", c.Id)
+		return nil, false
+	}
+}
+
+func getNode(c *mxCell) (Component, bool) {
+	s := c.StyleMap
 	_, ellipse := s["ellipse"]
 	color, fillcolor := s["fillColor"]
 	_, dash := s["dashed"]
@@ -99,7 +130,8 @@ func (p *PetriParser) GetNode(c *mxCell, s map[string]string) (Component, bool) 
 	}
 }
 
-func (p *PetriParser) GetArc(c *mxCell, s map[string]string) (Component, bool) {
+func getArc(c *mxCell) (Component, bool) {
+	s := c.StyleMap
 	arrow, endarrow := s["endArrow"]
 	src := c.Source
 	dest := c.Target
@@ -143,7 +175,7 @@ func dist(x Component, y Component) float64 {
 	}
 }
 
-func (p *PetriParser) Write(w io.Writer, cs []Component) {
+func write(w io.Writer, cs []Component) {
 	labels := make(map[string]string)
 
 	fmt.Fprintln(w, "// Begin: This part has been generated automatically from XML file.")

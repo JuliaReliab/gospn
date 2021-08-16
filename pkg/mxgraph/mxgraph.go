@@ -5,9 +5,8 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"encoding/xml"
-	_ "fmt"
 	"io"
-	"log"
+	_ "log"
 	"net/url"
 	_ "os"
 	_ "strconv"
@@ -15,13 +14,15 @@ import (
 )
 
 type mxFile struct {
-	XMLName xml.Name `xml:"mxfile"`
-	Diagram []byte   `xml:"diagram"`
+	XMLName     xml.Name `xml:"mxfile"`
+	Diagram     []byte   `xml:"diagram"`
+	Description []byte   `xml:",innerxml"`
 }
 
 type mxDiagram struct {
-	XMLName    xml.Name `xml:"diagram"`
-	GraphModel []byte   `xml:"mxGraphModel"`
+	XMLName     xml.Name `xml:"diagram"`
+	GraphModel  []byte   `xml:"mxGraphModel"`
+	Description []byte   `xml:",innerxml"`
 }
 
 type mxGraphModel struct {
@@ -35,11 +36,12 @@ type mxCells struct {
 }
 
 type mxCell struct {
-	XMLName  xml.Name   `xml:"mxCell"`
-	Id       string     `xml:"id,attr"`
-	Parent   string     `xml:"parent,attr"`
-	Value    string     `xml:"value,attr"`
-	Style    string     `xml:"style,attr"`
+	XMLName  xml.Name `xml:"mxCell"`
+	Id       string   `xml:"id,attr"`
+	Parent   string   `xml:"parent,attr"`
+	Value    string   `xml:"value,attr"`
+	Style    string   `xml:"style,attr"`
+	StyleMap map[string]string
 	Vertex   bool       `xml:"vertex,attr"`
 	Edge     bool       `xml:"edge,attr"`
 	Source   string     `xml:"source,attr"`
@@ -55,89 +57,41 @@ type mxGeometry struct {
 	Height  float64  `xml:"height,attr"`
 }
 
-type Component map[string]interface{}
-
-type Parser interface {
-	GetNode(*mxCell, map[string]string) (Component, bool)
-	GetArc(*mxCell, map[string]string) (Component, bool)
-}
-
-func ParseXML(data []byte, p Parser) []Component {
-	comps := make([]Component, 0)
-	cells := GetCells(data)
-	for _, x := range cells {
-		if comp, ok := x.GetObj(p); ok {
-			comps = append(comps, comp)
-		}
-	}
-	return comps
-}
-
-func decode(data string) (string, error) {
+func decode(data []byte) ([]byte, error) {
 	var b []byte
 	var s string
 	var err error
-	b, err = base64.StdEncoding.DecodeString(data)
+	b, err = base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	r := flate.NewReader(bytes.NewReader(b))
 	defer r.Close()
 	b, err = io.ReadAll(r)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	s, err = url.QueryUnescape(string(b))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return s, nil
+	return []byte(s), nil
 }
 
-func getGraphModel(data []byte) []byte {
-	model := mxFile{}
-	if err := xml.Unmarshal(data, &model); err == nil {
-		diagram := mxDiagram{}
-		if err := xml.Unmarshal(model.Diagram, &diagram); err == nil {
-			return diagram.GraphModel
-		} else {
-			if str, err := decode(string(model.Diagram)); err == nil {
-				return []byte(str)
-			} else {
-				log.Fatal(err)
-			}
-		}
-	} else {
-		log.Println("Error: XML cannot be read at mxfile. Try to read from mxGraphModel.")
-		return data
-	}
-	return nil
-}
-
-func GetCells(data []byte) []mxCell {
+func getCells(data []byte) ([]mxCell, error) {
 	model := mxGraphModel{}
-	if err := xml.Unmarshal(getGraphModel(data), &model); err == nil {
-		return model.Root.Cells
+	if err := xml.Unmarshal(data, &model); err == nil {
+		for i, _ := range model.Root.Cells {
+			retval := getStyle(&model.Root.Cells[i])
+			model.Root.Cells[i].StyleMap = retval
+		}
+		return model.Root.Cells, nil
 	} else {
-		log.Println("Error: XML cannot be read at mxGraphModel.")
-		panic(err)
+		return nil, err
 	}
 }
 
-func (c *mxCell) GetObj(p Parser) (Component, bool) {
-	s := c.getStyle()
-	switch {
-	case c.Vertex:
-		return p.GetNode(c, s)
-	case c.Edge:
-		return p.GetArc(c, s)
-	default:
-		log.Println("Skip mxCell id: ", c.Id)
-		return nil, false
-	}
-}
-
-func (c *mxCell) getStyle() map[string]string {
+func getStyle(c *mxCell) map[string]string {
 	styles := make(map[string]string)
 	for _, x := range strings.Split(c.Style, ";") {
 		e := strings.Split(x, "=")
@@ -151,4 +105,20 @@ func (c *mxCell) getStyle() map[string]string {
 		}
 	}
 	return styles
+}
+
+func GetGraphModel(data []byte) ([]mxCell, error) {
+	model := mxFile{}
+	if err := xml.Unmarshal(data, &model); err == nil {
+		diagram := mxDiagram{}
+		if s, err := decode(model.Diagram); err == nil {
+			return getCells(s)
+		} else if err := xml.Unmarshal(model.Description, &diagram); err == nil {
+			return getCells(diagram.Description)
+		} else {
+			return nil, err
+		}
+	} else {
+		return getCells(data)
+	}
 }
