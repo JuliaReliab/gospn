@@ -3,10 +3,10 @@ package mxgraph
 import (
 	"bytes"
 	"fmt"
-	"html"
+	_ "html"
 	"io"
-	"log"
-	"regexp"
+	_ "log"
+	_ "regexp"
 	_ "strconv"
 	"strings"
 )
@@ -25,35 +25,94 @@ func (o Options) toString() string {
 type PetriParser struct{}
 
 func (p *PetriParser) ParseXML(data []byte) ([]byte, error) {
-	comps := make([]Component, 0)
-	if cells, err := GetGraphModel(data); err == nil {
-		for _, x := range cells {
-			if comp, ok := getObj(&x); ok {
-				comps = append(comps, comp)
+	nodes := make(map[string]MxElement)
+	arcs := make(map[string]MxElement)
+	labels := make([]MxElement, 0)
+	edgelabels := make([]MxElement, 0)
+	if elems, err := GetGraphModel(data); err == nil {
+		for _, x := range elems {
+			switch x.getObj() {
+			case "place", "imm", "exp", "gen":
+				nodes[x.Id] = x
+			case "arc", "harc":
+				arcs[x.Id] = x
+			case "label":
+				labels = append(labels, x)
+			case "edgeLabel":
+				edgelabels = append(edgelabels, x)
+			default:
 			}
 		}
+		// label matching
+		matchingNode(nodes, labels)
+		for _, x := range edgelabels {
+			a, ok := arcs[x.Parent]
+			if ok {
+				a.Properties["multi"] = x.Value
+			}
+		}
+
 		var buf bytes.Buffer
-		write(&buf, comps)
+		write(&buf, nodes, arcs)
 		return buf.Bytes(), nil
 	} else {
 		return nil, err
 	}
 }
 
-func getObj(c *mxCell) (Component, bool) {
-	switch {
-	case c.Vertex:
-		return getNode(c)
-	case c.Edge:
-		return getArc(c)
-	default:
-		log.Println("Skip mxCell id: ", c.Id)
-		return nil, false
+func matchingNode(nodes map[string]MxElement, labels []MxElement) {
+	dists := make(map[string][]float64)
+	for i, x := range nodes {
+		dists[i] = make([]float64, len(labels))
+		for j, y := range labels {
+			dists[i][j] = dist(x, y)
+		}
+	}
+
+	// matching
+	for len(dists) > 0 {
+		mink := ""
+		minj := -1
+		smin := 1.0e+200
+		for k, x := range dists {
+			for j, y := range x {
+				if y < smin {
+					smin = y
+					minj = j
+					mink = k
+				}
+			}
+		}
+		if smin == 1.0e+200 {
+			for k, _ := range dists {
+				nodes[k].Properties["label"] = strings.Replace(nodes[k].Id, "-", "_", -1)
+			}
+			break
+		}
+		nodes[mink].Properties["label"] = labels[minj].Value
+		delete(dists, mink)
+		for _, x := range dists {
+			x[minj] = 1.0e+200
+		}
 	}
 }
 
-func getNode(c *mxCell) (Component, bool) {
-	s := c.StyleMap
+func (c *MxElement) getObj() string {
+	switch c.Type {
+	case "place", "imm", "exp", "gen":
+		return c.Type
+	case "vertex":
+		return c.getNode()
+	case "edge":
+		return c.getArc()
+	default:
+		// log.Println("Skip object id: ", c.Id, " type: ", c.Type)
+		return ""
+	}
+}
+
+func (c *MxElement) getNode() string {
+	s := c.Properties
 	_, ellipse := s["ellipse"]
 	color, fillcolor := s["fillColor"]
 	_, dash := s["dashed"]
@@ -63,133 +122,83 @@ func getNode(c *mxCell) (Component, bool) {
 
 	switch {
 	case group == true:
-		log.Printf("mxCell %s is detected as Group", c.Id)
-		return Component{
-			"type":     "group",
-			"id":       c.Id,
-			"parent":   c.Parent,
-			"value":    toValue(c.Value),
-			"geometry": []float64{c.Geometry.X, c.Geometry.Y, c.Geometry.Width, c.Geometry.Height},
-		}, true
+		// log.Printf("mxCell %s is detected as Group", c.Id)
+		c.Type = "group"
 	case text == true:
-		log.Printf("mxCell %s is detected as Label", c.Id)
-		return Component{
-			"type":     "label",
-			"id":       c.Id,
-			"parent":   c.Parent,
-			"value":    toValue(c.Value),
-			"geometry": []float64{c.Geometry.X, c.Geometry.Y, c.Geometry.Width, c.Geometry.Height},
-		}, true
+		// log.Printf("mxCell %s is detected as Label", c.Id)
+		c.Type = "label"
 	case edgeLabel == true:
-		log.Printf("mxCell %s is detected as EdgeLabel", c.Id)
-		return Component{
-			"type":   "edgeLabel",
-			"id":     c.Id,
-			"parent": c.Parent,
-			"value":  toValue(c.Value),
-		}, true
+		// log.Printf("mxCell %s is detected as EdgeLabel", c.Id)
+		c.Type = "edgeLabel"
 	case ellipse == true && fillcolor == false:
-		log.Printf("mxCell %s is detected as Place", c.Id)
-		return Component{
-			"type":     "place",
-			"id":       c.Id,
-			"parent":   c.Parent,
-			"value":    toValue(c.Value),
-			"geometry": []float64{c.Geometry.X, c.Geometry.Y, c.Geometry.Width, c.Geometry.Height},
-		}, true
+		// log.Printf("mxCell %s is detected as Place", c.Id)
+		c.Type = "place"
 	case ellipse == false && group == false && dash == true:
-		log.Printf("mxCell %s is detected as IMM", c.Id)
-		return Component{
-			"type":     "imm",
-			"id":       c.Id,
-			"parent":   c.Parent,
-			"value":    toValue(c.Value),
-			"geometry": []float64{c.Geometry.X, c.Geometry.Y, c.Geometry.Width, c.Geometry.Height},
-		}, true
+		// log.Printf("mxCell %s is detected as IMM", c.Id)
+		c.Type = "imm"
 	case ellipse == false && group == false && dash == false && fillcolor == true && color == "#000000":
-		log.Printf("mxCell %s is detected as GEN", c.Id)
-		return Component{
-			"type":     "gen",
-			"id":       c.Id,
-			"parent":   c.Parent,
-			"value":    toValue(c.Value),
-			"geometry": []float64{c.Geometry.X, c.Geometry.Y, c.Geometry.Width, c.Geometry.Height},
-		}, true
+		// log.Printf("mxCell %s is detected as GEN", c.Id)
+		c.Type = "gen"
 	case ellipse == false && group == false && dash == false && fillcolor == false:
-		log.Printf("mxCell %s is detected as EXP", c.Id)
-		return Component{
-			"type":     "exp",
-			"id":       c.Id,
-			"parent":   c.Parent,
-			"value":    toValue(c.Value),
-			"geometry": []float64{c.Geometry.X, c.Geometry.Y, c.Geometry.Width, c.Geometry.Height},
-		}, true
+		// log.Printf("mxCell %s is detected as EXP", c.Id)
+		c.Type = "exp"
 	default:
-		log.Println("Cannot detect mxCell as a node: id=", c.Id)
-		return nil, false
+		// log.Println("Cannot detect mxCell as a node: id=", c.Id)
+		c.Type = ""
 	}
+	return c.Type
 }
 
-func getArc(c *mxCell) (Component, bool) {
-	s := c.StyleMap
+func (c *MxElement) getArc() string {
+	s := c.Properties
 	arrow, endarrow := s["endArrow"]
-	src := c.Source
-	dest := c.Target
+	src := s["source"]
+	dest := s["target"]
 	switch {
 	case src != "" && dest != "" && endarrow == true && arrow == "oval":
-		log.Printf("mxCell %s is detected as HARC", c.Id)
-		return Component{
-			"type":   "harc",
-			"id":     c.Id,
-			"parent": c.Parent,
-			"value":  c.Value,
-			"source": c.Source,
-			"target": c.Target,
-		}, true
+		// log.Printf("mxCell %s is detected as HARC", c.Id)
+		c.Type = "harc"
 	case src != "" && dest != "":
-		log.Printf("mxCell %s is detected as ARC", c.Id)
-		return Component{
-			"type":   "arc",
-			"id":     c.Id,
-			"parent": c.Parent,
-			"value":  c.Value,
-			"source": c.Source,
-			"target": c.Target,
-		}, true
+		// log.Printf("mxCell %s is detected as ARC", c.Id)
+		c.Type = "arc"
 	default:
-		log.Println("Cannot detect mxCell as an arc: id=", c.Id)
-		return nil, false
+		// log.Println("Cannot detect mxCell as an arc: id=", c.Id)
+		c.Type = ""
 	}
+	return c.Type
 }
 
-func dist(x Component, y Component) float64 {
-	v1, ok1 := x["geometry"].([]float64)
-	v2, ok2 := y["geometry"].([]float64)
-	if ok1 && ok2 {
+func dist(x MxElement, y MxElement) float64 {
+	if x.Parent != y.Parent {
+		return 1.0e+200
+	} else {
+		v1 := []float64{x.Geometry.X, x.Geometry.Y, x.Geometry.Width, x.Geometry.Height}
+		v2 := []float64{y.Geometry.X, y.Geometry.Y, y.Geometry.Width, y.Geometry.Height}
 		s := 0.0
 		s += ((v1[0] + v1[2]/2) - (v2[0] + v2[2]/2)) * ((v1[0] + v1[2]/2) - (v2[0] + v2[2]/2))
 		s += ((v1[1] + v1[3]/2) - (v2[1] + v2[3]/2)) * ((v1[1] + v1[3]/2) - (v2[1] + v2[3]/2))
 		return s
-	} else {
-		return 1.0e+200
 	}
 }
 
-func write(w io.Writer, cs []Component) {
-	labels := make(map[string]string)
-
+func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 	fmt.Fprintln(w, "// Begin: This part has been generated automatically from XML file.")
 	// place
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// place")
-	for _, x := range cs {
-		id := x["id"].(string)
-		if x["type"] == "place" {
-			label, options := getLabel(x, cs, "init")
-			labels[id] = label
-			if i, ok := getIntValue(x); ok {
-				options["init"] = i
+	for _, x := range nodes {
+		if x.Type == "place" {
+			// make label
+			label := x.Properties["label"]
+			// make options
+			options := Options{}
+			if x.Properties["init"] != "" {
+				options["init"] = x.Properties["init"]
 			}
+			if x.Value != "" {
+				options["init"] = x.Value
+			}
+			// write
 			if len(options) == 0 {
 				fmt.Fprintf(w, "place %s\n", label)
 			} else {
@@ -198,31 +207,59 @@ func write(w io.Writer, cs []Component) {
 		}
 	}
 
-	// transitions
+	// trans
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "// transition")
-	for _, x := range cs {
-		id := x["id"].(string)
-		switch {
-		case x["type"] == "imm":
-			label, options := getLabel(x, cs, "guard")
-			labels[id] = label
+	fmt.Fprintln(w, "// trans")
+	for _, x := range nodes {
+		if x.Type == "imm" {
+			// make label
+			label := x.Properties["label"]
+			// make options
+			options := Options{}
+			if x.Properties["guard"] != "" {
+				options["guard"] = x.Properties["guard"]
+			}
+			// write
 			if len(options) == 0 {
 				fmt.Fprintf(w, "imm %s\n", label)
 			} else {
 				fmt.Fprintf(w, "imm %s (%s)\n", label, options.toString())
 			}
-		case x["type"] == "exp":
-			label, options := getLabel(x, cs, "guard")
-			labels[id] = label
+		}
+	}
+	for _, x := range nodes {
+		if x.Type == "exp" {
+			// make label
+			label := x.Properties["label"]
+			// make options
+			options := Options{}
+			if x.Properties["guard"] != "" {
+				options["guard"] = x.Properties["guard"]
+			}
+			if x.Properties["rate"] != "" {
+				options["rate"] = x.Properties["rate"]
+			}
+			// write
 			if len(options) == 0 {
 				fmt.Fprintf(w, "exp %s\n", label)
 			} else {
 				fmt.Fprintf(w, "exp %s (%s)\n", label, options.toString())
 			}
-		case x["type"] == "gen":
-			label, options := getLabel(x, cs, "guard")
-			labels[id] = label
+		}
+	}
+	for _, x := range nodes {
+		if x.Type == "gen" {
+			// make label
+			label := x.Properties["label"]
+			// make options
+			options := Options{}
+			if x.Properties["guard"] != "" {
+				options["guard"] = x.Properties["guard"]
+			}
+			if x.Properties["dist"] != "" {
+				options["dist"] = x.Properties["dist"]
+			}
+			// write
 			if len(options) == 0 {
 				fmt.Fprintf(w, "gen %s\n", label)
 			} else {
@@ -234,83 +271,41 @@ func write(w io.Writer, cs []Component) {
 	// arc
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// arc")
-	for _, x := range cs {
+	for _, x := range arcs {
 		switch {
-		case x["type"] == "arc":
-			if m, one := getMulti(x, cs); one {
-				fmt.Fprintf(w, "arc %s to %s\n", labels[x["source"].(string)], labels[x["target"].(string)])
-			} else {
-				fmt.Fprintf(w, "arc %s to %s (multi = %s)\n", labels[x["source"].(string)], labels[x["target"].(string)], m)
+		case x.Type == "arc":
+			// make labels
+			src := nodes[x.Properties["source"]].Properties["label"]
+			dest := nodes[x.Properties["target"]].Properties["label"]
+			// make options
+			options := Options{}
+			if x.Properties["multi"] != "" {
+				options["multi"] = x.Properties["multi"]
 			}
-		case x["type"] == "harc":
-			if m, one := getMulti(x, cs); one {
-				fmt.Fprintf(w, "harc %s to %s\n", labels[x["source"].(string)], labels[x["target"].(string)])
+			// write
+			if len(options) == 0 {
+				fmt.Fprintf(w, "arc %s to %s\n", src, dest)
 			} else {
-				fmt.Fprintf(w, "harc %s to %s (multi = %s)\n", labels[x["source"].(string)], labels[x["target"].(string)], m)
+				fmt.Fprintf(w, "arc %s to %s (%s)\n", src, dest, options.toString())
+			}
+		case x.Type == "harc":
+			// make labels
+			src := nodes[x.Properties["source"]].Properties["label"]
+			dest := nodes[x.Properties["target"]].Properties["label"]
+			// make options
+			options := Options{}
+			if x.Properties["multi"] != "" {
+				options["multi"] = x.Properties["multi"]
+			}
+			// write
+			if len(options) == 0 {
+				fmt.Fprintf(w, "harc %s to %s\n", src, dest)
+			} else {
+				fmt.Fprintf(w, "harc %s to %s (%s)\n", src, dest, options.toString())
 			}
 		}
 	}
-
 	// end
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// End: This part has been generated automatically from XML file.")
-}
-
-func toValue(x string) string {
-	a := html.UnescapeString(x)
-	b := strings.Replace(a, `<br>`, "", -1)
-	c := strings.Replace(b, `\n`, "", -1)
-	return c
-}
-
-func getLabel(x Component, cs []Component, defaultOptionKey string) (string, Options) {
-	value := ""
-	mind := 1.0e+200
-	for _, y := range cs {
-		if x["parent"] == y["parent"] && y["type"] == "label" {
-			d := dist(x, y)
-			if d < mind {
-				value = y["value"].(string)
-				mind = d
-			}
-		}
-	}
-	tmp := regexp.MustCompile(`\s*([a-zA-Z0-9_\-\.@\+/\*\(\)&%$<>]+)\s*(\[\s*(.+)\s*\])?`).FindStringSubmatch(value)
-	label := strings.Replace(tmp[1], " ", "", -1)
-	opts := regexp.MustCompile(`[;,]`).Split(tmp[3], -1)
-	options := Options{}
-	kvregexp := regexp.MustCompile(`\s*(.+)+\s*:\s*(.+)\s*`)
-	for _, x := range opts {
-		if len(x) == 0 {
-			continue
-		}
-		tmp := kvregexp.FindStringSubmatch(x)
-		if len(tmp) == 3 && tmp[1] != "" {
-			options[tmp[1]] = tmp[2]
-		} else {
-			options[defaultOptionKey] = x
-		}
-	}
-	return label, options
-}
-
-func getIntValue(x Component) (string, bool) {
-	v := x["value"].(string)
-	if v == "" {
-		return "0", false
-	} else {
-		return v, true
-	}
-}
-
-func getMulti(x Component, cs []Component) (string, bool) {
-	id := x["id"].(string)
-	for _, y := range cs {
-		if y["type"] == "edgeLabel" {
-			if id == y["parent"].(string) {
-				return y["value"].(string), false
-			}
-		}
-	}
-	return "", true
 }

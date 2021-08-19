@@ -31,17 +31,26 @@ type mxGraphModel struct {
 }
 
 type mxCells struct {
-	XMLName xml.Name `xml:"root"`
-	Cells   []mxCell `xml:"mxCell"`
+	XMLName xml.Name   `xml:"root"`
+	Cells   []mxCell   `xml:"mxCell"`
+	Objects []mxObject `xml:"object"`
+}
+
+type mxObject struct {
+	XMLName xml.Name   `xml:"object"`
+	Label   string     `xml:"label,attr"`
+	Id      string     `xml:"id,attr"`
+	Type    string     `xml:"type,attr"`
+	AnyAttr []xml.Attr `xml:",any,attr"`
+	Cell    mxCell     `xml:"mxCell"`
 }
 
 type mxCell struct {
-	XMLName  xml.Name `xml:"mxCell"`
-	Id       string   `xml:"id,attr"`
-	Parent   string   `xml:"parent,attr"`
-	Value    string   `xml:"value,attr"`
-	Style    string   `xml:"style,attr"`
-	StyleMap map[string]string
+	XMLName  xml.Name   `xml:"mxCell"`
+	Id       string     `xml:"id,attr"`
+	Parent   string     `xml:"parent,attr"`
+	Value    string     `xml:"value,attr"`
+	Style    string     `xml:"style,attr"`
 	Vertex   bool       `xml:"vertex,attr"`
 	Edge     bool       `xml:"edge,attr"`
 	Source   string     `xml:"source,attr"`
@@ -55,6 +64,15 @@ type mxGeometry struct {
 	Y       float64  `xml:"y,attr"`
 	Width   float64  `xml:"width,attr"`
 	Height  float64  `xml:"height,attr"`
+}
+
+type MxElement struct {
+	Id         string
+	Type       string
+	Parent     string
+	Value      string
+	Properties map[string]string
+	Geometry   mxGeometry
 }
 
 func decode(data []byte) ([]byte, error) {
@@ -78,36 +96,125 @@ func decode(data []byte) ([]byte, error) {
 	return []byte(s), nil
 }
 
-func getCells(data []byte) ([]mxCell, error) {
+// func getCells(data []byte) ([]mxCell, error) {
+// 	model := mxGraphModel{}
+// 	if err := xml.Unmarshal(data, &model); err == nil {
+// 		for i, _ := range model.Root.Cells {
+// 			retval := getStyle(&model.Root.Cells[i])
+// 			model.Root.Cells[i].StyleMap = retval
+// 		}
+// 		return model.Root.Cells, nil
+// 	} else {
+// 		return nil, err
+// 	}
+// }
+
+// func getStyle(c *mxCell) map[string]string {
+// 	styles := make(map[string]string)
+// 	for _, x := range strings.Split(c.Style, ";") {
+// 		e := strings.Split(x, "=")
+// 		switch len(e) {
+// 		case 1:
+// 			styles[e[0]] = ""
+// 		case 2:
+// 			styles[e[0]] = e[1]
+// 		default:
+// 			panic("Error: Style in Cell")
+// 		}
+// 	}
+// 	return styles
+// }
+
+// func GetGraphModel(data []byte) ([]mxCell, error) {
+// 	model := mxFile{}
+// 	if err := xml.Unmarshal(data, &model); err == nil {
+// 		diagram := mxDiagram{}
+// 		if s, err := decode(model.Diagram); err == nil {
+// 			return getCells(s)
+// 		} else if err := xml.Unmarshal(model.Description, &diagram); err == nil {
+// 			return getCells(diagram.Description)
+// 		} else {
+// 			return nil, err
+// 		}
+// 	} else {
+// 		return getCells(data)
+// 	}
+// }
+
+func getCells(data []byte) ([]MxElement, error) {
 	model := mxGraphModel{}
+	elems := make([]MxElement, 0)
 	if err := xml.Unmarshal(data, &model); err == nil {
-		for i, _ := range model.Root.Cells {
-			retval := getStyle(&model.Root.Cells[i])
-			model.Root.Cells[i].StyleMap = retval
+		for _, x := range model.Root.Objects {
+			elem := MxElement{
+				Id:         "",
+				Type:       "",
+				Parent:     "",
+				Value:      "",
+				Properties: make(map[string]string),
+				Geometry:   mxGeometry{},
+			}
+			elem.Id = x.Id
+			elem.Type = x.Type
+			elem.Parent = x.Cell.Parent
+			elem.Value = x.Label
+			elem.Geometry = x.Cell.Geometry
+			for _, v := range x.AnyAttr {
+				elem.Properties[v.Name.Local] = v.Value
+			}
+			if x.Cell.Edge {
+				elem.Properties["source"] = x.Cell.Source
+				elem.Properties["target"] = x.Cell.Target
+			}
+			x.Cell.getStyle(elem.Properties)
+			elems = append(elems, elem)
 		}
-		return model.Root.Cells, nil
+		for _, x := range model.Root.Cells {
+			elem := MxElement{
+				Id:         "",
+				Type:       "",
+				Parent:     "",
+				Value:      "",
+				Properties: make(map[string]string),
+				Geometry:   mxGeometry{},
+			}
+			elem.Id = x.Id
+			elem.Parent = x.Parent
+			elem.Value = x.Value
+			elem.Geometry = x.Geometry
+			if x.Vertex {
+				elem.Type = "vertex"
+			} else if x.Edge {
+				elem.Type = "edge"
+				elem.Properties["source"] = x.Source
+				elem.Properties["target"] = x.Target
+			}
+			x.getStyle(elem.Properties)
+			elems = append(elems, elem)
+		}
+		return elems, nil
 	} else {
 		return nil, err
 	}
 }
 
-func getStyle(c *mxCell) map[string]string {
-	styles := make(map[string]string)
+func (c *mxCell) getStyle(properties map[string]string) {
 	for _, x := range strings.Split(c.Style, ";") {
 		e := strings.Split(x, "=")
-		switch len(e) {
-		case 1:
-			styles[e[0]] = ""
-		case 2:
-			styles[e[0]] = e[1]
-		default:
-			panic("Error: Style in Cell")
+		if e[0] != "" {
+			switch len(e) {
+			case 1:
+				properties[e[0]] = ""
+			case 2:
+				properties[e[0]] = e[1]
+			default:
+				panic("Error: Style in Cell")
+			}
 		}
 	}
-	return styles
 }
 
-func GetGraphModel(data []byte) ([]mxCell, error) {
+func GetGraphModel(data []byte) ([]MxElement, error) {
 	model := mxFile{}
 	if err := xml.Unmarshal(data, &model); err == nil {
 		diagram := mxDiagram{}
