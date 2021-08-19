@@ -233,3 +233,80 @@ func TestPetri03(t *testing.T) {
 	}
 	fmt.Println(string(b))
 }
+
+func TestPetri04(t *testing.T) {
+	data := []byte(`
+<mxGraphModel dx="712" dy="776" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=0;entryX=0.5;entryY=1;jettySize=auto;orthogonalLoop=1;" parent="1" source="2" target="4" edge="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <object label="" type="place" init="10" id="2">
+      <mxCell style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" parent="1" vertex="1">
+        <mxGeometry x="140" y="90" width="40" height="40" as="geometry"/>
+      </mxCell>
+    </object>
+    <mxCell id="9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;jettySize=auto;orthogonalLoop=1;" parent="1" source="3" target="2" edge="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <object label="" type="exp" id="3">
+      <mxCell style="rounded=0;whiteSpace=wrap;html=1;direction=south;" parent="1" vertex="1">
+        <mxGeometry x="230" y="140" width="20" height="70" as="geometry"/>
+      </mxCell>
+    </object>
+    <mxCell id="7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=0;entryX=0.5;entryY=0;jettySize=auto;orthogonalLoop=1;" parent="1" source="4" target="5" edge="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <object label="" type="gen" id="4">
+      <mxCell style="rounded=0;whiteSpace=wrap;html=1;direction=south;fillColor=#000000;" parent="1" vertex="1">
+        <mxGeometry x="230" y="20" width="20" height="70" as="geometry"/>
+      </mxCell>
+    </object>
+    <mxCell id="8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;jettySize=auto;orthogonalLoop=1;" parent="1" source="5" target="3" edge="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <object label="" type="place" id="5">
+      <mxCell style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" parent="1" vertex="1">
+        <mxGeometry x="320" y="90" width="40" height="40" as="geometry"/>
+      </mxCell>
+    </object>
+    <mxCell id="10" value="P1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+      <mxGeometry x="100" y="120" width="40" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="11" value="P2" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+      <mxGeometry x="370" y="110" width="40" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="12" value="T2" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+      <mxGeometry x="230" y="220" width="40" height="20" as="geometry"/>
+    </mxCell>
+    <mxCell id="13" value="T1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+      <mxGeometry x="250" y="10" width="40" height="20" as="geometry"/>
+    </mxCell>
+    <object label="// preprocess&#xa;&#xa;n=3&#xa;m=5" type="preprocess" id="16">
+      <mxCell style="text;strokeColor=#000000;fillColor=none;align=left;verticalAlign=top;rounded=0;labelBorderColor=none;spacingTop=0;spacing=2;shadow=0;comic=0;dashed=1;" parent="1" vertex="1">
+        <mxGeometry x="460" y="130" width="110" height="70" as="geometry"/>
+      </mxCell>
+    </object>
+    <object label="// postprocess&#xa;&#xa;reward test ifelse(#P1 &gt;= 1, 1, 0)" type="postprocess" id="19">
+      <mxCell style="text;strokeColor=#000000;fillColor=none;align=left;verticalAlign=top;rounded=0;labelBorderColor=none;spacingTop=0;spacing=2;shadow=0;comic=0;dashed=1;" parent="1" vertex="1">
+        <mxGeometry x="430" y="255" width="260" height="70" as="geometry"/>
+      </mxCell>
+    </object>
+    <object label="This is a comment" type="comment" id="21">
+      <mxCell style="shape=callout;perimeter=calloutPerimeter;position2=0.68;direction=west;" vertex="1" parent="1">
+        <mxGeometry x="210" y="245" width="120" height="80" as="geometry"/>
+      </mxCell>
+    </object>
+  </root>
+</mxGraphModel>
+
+`)
+	p := &PetriParser{}
+	b, err := p.ParseXML(data)
+	if err != nil {
+		t.Error("error")
+	}
+	fmt.Println(string(b))
+}

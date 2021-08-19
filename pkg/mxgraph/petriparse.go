@@ -3,13 +3,15 @@ package mxgraph
 import (
 	"bytes"
 	"fmt"
-	_ "html"
+	"html"
 	"io"
-	_ "log"
-	_ "regexp"
+	"log"
+	"os"
 	_ "strconv"
 	"strings"
 )
+
+var logger *log.Logger
 
 type Component map[string]interface{}
 type Options map[string]string
@@ -25,10 +27,15 @@ func (o Options) toString() string {
 type PetriParser struct{}
 
 func (p *PetriParser) ParseXML(data []byte) ([]byte, error) {
+	logger = log.New(os.Stdout, "[MxGraph] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
+	logger.SetOutput(io.Discard)
+
 	nodes := make(map[string]MxElement)
 	arcs := make(map[string]MxElement)
 	labels := make([]MxElement, 0)
 	edgelabels := make([]MxElement, 0)
+	pre := make([]MxElement, 0)
+	post := make([]MxElement, 0)
 	if elems, err := GetGraphModel(data); err == nil {
 		for _, x := range elems {
 			switch x.getObj() {
@@ -40,6 +47,10 @@ func (p *PetriParser) ParseXML(data []byte) ([]byte, error) {
 				labels = append(labels, x)
 			case "edgeLabel":
 				edgelabels = append(edgelabels, x)
+			case "preprocess":
+				pre = append(pre, x)
+			case "postprocess":
+				post = append(post, x)
 			default:
 			}
 		}
@@ -53,7 +64,7 @@ func (p *PetriParser) ParseXML(data []byte) ([]byte, error) {
 		}
 
 		var buf bytes.Buffer
-		write(&buf, nodes, arcs)
+		write(&buf, nodes, arcs, pre, post)
 		return buf.Bytes(), nil
 	} else {
 		return nil, err
@@ -85,7 +96,7 @@ func matchingNode(nodes map[string]MxElement, labels []MxElement) {
 		}
 		if smin == 1.0e+200 {
 			for k, _ := range dists {
-				nodes[k].Properties["label"] = strings.Replace(nodes[k].Id, "-", "_", -1)
+				nodes[k].Properties["label"] = strings.Replace("id_"+nodes[k].Id, "-", "_", -1)
 			}
 			break
 		}
@@ -99,14 +110,14 @@ func matchingNode(nodes map[string]MxElement, labels []MxElement) {
 
 func (c *MxElement) getObj() string {
 	switch c.Type {
-	case "place", "imm", "exp", "gen":
+	case "place", "imm", "exp", "gen", "preprocess", "postprocess":
 		return c.Type
 	case "vertex":
 		return c.getNode()
 	case "edge":
 		return c.getArc()
 	default:
-		// log.Println("Skip object id: ", c.Id, " type: ", c.Type)
+		logger.Printf("Skip object id: %s type: %s", c.Id, c.Type)
 		return ""
 	}
 }
@@ -122,28 +133,28 @@ func (c *MxElement) getNode() string {
 
 	switch {
 	case group == true:
-		// log.Printf("mxCell %s is detected as Group", c.Id)
+		logger.Printf("mxCell %s is detected as Group", c.Id)
 		c.Type = "group"
 	case text == true:
-		// log.Printf("mxCell %s is detected as Label", c.Id)
+		logger.Printf("mxCell %s is detected as Label", c.Id)
 		c.Type = "label"
 	case edgeLabel == true:
-		// log.Printf("mxCell %s is detected as EdgeLabel", c.Id)
+		logger.Printf("mxCell %s is detected as EdgeLabel", c.Id)
 		c.Type = "edgeLabel"
 	case ellipse == true && fillcolor == false:
-		// log.Printf("mxCell %s is detected as Place", c.Id)
+		logger.Printf("mxCell %s is detected as Place", c.Id)
 		c.Type = "place"
 	case ellipse == false && group == false && dash == true:
-		// log.Printf("mxCell %s is detected as IMM", c.Id)
+		logger.Printf("mxCell %s is detected as IMM", c.Id)
 		c.Type = "imm"
 	case ellipse == false && group == false && dash == false && fillcolor == true && color == "#000000":
-		// log.Printf("mxCell %s is detected as GEN", c.Id)
+		logger.Printf("mxCell %s is detected as GEN", c.Id)
 		c.Type = "gen"
 	case ellipse == false && group == false && dash == false && fillcolor == false:
-		// log.Printf("mxCell %s is detected as EXP", c.Id)
+		logger.Printf("mxCell %s is detected as EXP", c.Id)
 		c.Type = "exp"
 	default:
-		// log.Println("Cannot detect mxCell as a node: id=", c.Id)
+		logger.Println("Cannot detect mxCell as a node: id=", c.Id)
 		c.Type = ""
 	}
 	return c.Type
@@ -156,13 +167,13 @@ func (c *MxElement) getArc() string {
 	dest := s["target"]
 	switch {
 	case src != "" && dest != "" && endarrow == true && arrow == "oval":
-		// log.Printf("mxCell %s is detected as HARC", c.Id)
+		logger.Printf("mxCell %s is detected as HARC", c.Id)
 		c.Type = "harc"
 	case src != "" && dest != "":
-		// log.Printf("mxCell %s is detected as ARC", c.Id)
+		logger.Printf("mxCell %s is detected as ARC", c.Id)
 		c.Type = "arc"
 	default:
-		// log.Println("Cannot detect mxCell as an arc: id=", c.Id)
+		logger.Println("Cannot detect mxCell as an arc: id=", c.Id)
 		c.Type = ""
 	}
 	return c.Type
@@ -181,8 +192,25 @@ func dist(x MxElement, y MxElement) float64 {
 	}
 }
 
-func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
+func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, pre, post []MxElement) {
+	// options
+	optionlist := map[string][]string{
+		"place": []string{"init", "max"},
+		"imm":   []string{"weight", "guard", "priority", "vanishable"},
+		"exp":   []string{"rate", "guard", "priority", "vanishable"},
+		"gen":   []string{"dist", "guard", "policy", "priority", "vanishable"},
+		"arc":   []string{"multi"},
+		"harc":  []string{"multi"},
+	}
+
 	fmt.Fprintln(w, "// Begin: This part has been generated automatically from XML file.")
+
+	// preprocess
+	fmt.Fprintln(w)
+	for _, x := range pre {
+		fmt.Fprintln(w, toText(x.Value))
+	}
+
 	// place
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// place")
@@ -192,8 +220,10 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			label := x.Properties["label"]
 			// make options
 			options := Options{}
-			if x.Properties["init"] != "" {
-				options["init"] = x.Properties["init"]
+			for _, k := range optionlist[x.Type] {
+				if x.Properties[k] != "" {
+					options[k] = x.Properties[k]
+				}
 			}
 			if x.Value != "" {
 				options["init"] = x.Value
@@ -216,8 +246,10 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			label := x.Properties["label"]
 			// make options
 			options := Options{}
-			if x.Properties["guard"] != "" {
-				options["guard"] = x.Properties["guard"]
+			for _, k := range optionlist[x.Type] {
+				if x.Properties[k] != "" {
+					options[k] = x.Properties[k]
+				}
 			}
 			// write
 			if len(options) == 0 {
@@ -233,11 +265,10 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			label := x.Properties["label"]
 			// make options
 			options := Options{}
-			if x.Properties["guard"] != "" {
-				options["guard"] = x.Properties["guard"]
-			}
-			if x.Properties["rate"] != "" {
-				options["rate"] = x.Properties["rate"]
+			for _, k := range optionlist[x.Type] {
+				if x.Properties[k] != "" {
+					options[k] = x.Properties[k]
+				}
 			}
 			// write
 			if len(options) == 0 {
@@ -253,11 +284,10 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			label := x.Properties["label"]
 			// make options
 			options := Options{}
-			if x.Properties["guard"] != "" {
-				options["guard"] = x.Properties["guard"]
-			}
-			if x.Properties["dist"] != "" {
-				options["dist"] = x.Properties["dist"]
+			for _, k := range optionlist[x.Type] {
+				if x.Properties[k] != "" {
+					options[k] = x.Properties[k]
+				}
 			}
 			// write
 			if len(options) == 0 {
@@ -279,8 +309,10 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			dest := nodes[x.Properties["target"]].Properties["label"]
 			// make options
 			options := Options{}
-			if x.Properties["multi"] != "" {
-				options["multi"] = x.Properties["multi"]
+			for _, k := range optionlist[x.Type] {
+				if x.Properties[k] != "" {
+					options[k] = x.Properties[k]
+				}
 			}
 			// write
 			if len(options) == 0 {
@@ -294,8 +326,10 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			dest := nodes[x.Properties["target"]].Properties["label"]
 			// make options
 			options := Options{}
-			if x.Properties["multi"] != "" {
-				options["multi"] = x.Properties["multi"]
+			for _, k := range optionlist[x.Type] {
+				if x.Properties[k] != "" {
+					options[k] = x.Properties[k]
+				}
 			}
 			// write
 			if len(options) == 0 {
@@ -305,7 +339,20 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement) {
 			}
 		}
 	}
+
+	// postprocess
+	fmt.Fprintln(w)
+	for _, x := range post {
+		fmt.Fprintln(w, toText(x.Value))
+	}
+
 	// end
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// End: This part has been generated automatically from XML file.")
+}
+
+func toText(x string) string {
+	a := html.UnescapeString(x)
+	b := strings.Replace(a, `<br>`, "\n", -1)
+	return b
 }

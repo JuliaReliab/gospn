@@ -10,8 +10,7 @@ import (
 	"github.com/okamumu/gospn/pkg/mxgraph"
 	"github.com/okamumu/gospn/pkg/parser"
 	"github.com/okamumu/gospn/pkg/petrinet"
-	"io/ioutil"
-	// "math/rand"
+	"io"
 	"os"
 	"time"
 )
@@ -56,7 +55,7 @@ func cmdview(args []string) {
 
 	var defs string
 	if *xmlfile != "" {
-		if xml, err := ioutil.ReadFile(*xmlfile); err == nil {
+		if xml, err := os.ReadFile(*xmlfile); err == nil {
 			p := &mxgraph.PetriParser{}
 			b, err := p.ParseXML(xml)
 			if err != nil {
@@ -68,13 +67,13 @@ func cmdview(args []string) {
 			panic(err)
 		}
 	} else if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
@@ -111,7 +110,7 @@ func cmdmark(args []string) {
 
 	var defs string
 	if *xmlfile != "" {
-		if xml, err := ioutil.ReadFile(*xmlfile); err == nil {
+		if xml, err := os.ReadFile(*xmlfile); err == nil {
 			p := &mxgraph.PetriParser{}
 			b, err := p.ParseXML(xml)
 			if err != nil {
@@ -123,13 +122,13 @@ func cmdmark(args []string) {
 			panic(err)
 		}
 	} else if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
@@ -260,7 +259,7 @@ func cmdsim(args []string) {
 
 	var defs string
 	if *xmlfile != "" {
-		if xml, err := ioutil.ReadFile(*xmlfile); err == nil {
+		if xml, err := os.ReadFile(*xmlfile); err == nil {
 			p := &mxgraph.PetriParser{}
 			b, err := p.ParseXML(xml)
 			if err != nil {
@@ -272,13 +271,13 @@ func cmdsim(args []string) {
 			panic(err)
 		}
 	} else if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
@@ -292,7 +291,7 @@ func cmdsim(args []string) {
 	var config petrinet.PNSimConfig
 	var json []byte
 	if *configfile != "" {
-		if j, err := ioutil.ReadFile(*configfile); err == nil {
+		if j, err := os.ReadFile(*configfile); err == nil {
 			json = j
 		} else {
 			panic(err)
@@ -350,6 +349,7 @@ func cmdsim(args []string) {
 }
 
 func cmdtest(args []string) {
+	xmlfile := flag.String("x", "", "XML file for drawing Petrinet")
 	infile := flag.String("i", "", "Petrinet definition file")
 	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
@@ -358,14 +358,26 @@ func cmdtest(args []string) {
 	flag.CommandLine.Parse(args)
 
 	var defs string
-	if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+	if *xmlfile != "" {
+		if xml, err := os.ReadFile(*xmlfile); err == nil {
+			p := &mxgraph.PetriParser{}
+			b, err := p.ParseXML(xml)
+			if err != nil {
+				panic(err)
+			}
+			defs = string(b)
+			fmt.Println(string(b))
+		} else {
+			panic(err)
+		}
+	} else if *infile != "" {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)

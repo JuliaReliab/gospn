@@ -1,9 +1,9 @@
 package parser
 
 import (
-	"github.com/okamumu/gospn/pkg/petrinet"
 	"github.com/antlr/antlr4/runtime/Go/antlr"
-	"io/ioutil"
+	"github.com/okamumu/gospn/pkg/petrinet"
+	"io"
 	"log"
 	"os"
 )
@@ -11,8 +11,8 @@ import (
 var logger *log.Logger
 
 func PNreadFromText(text string) (*petrinet.Net, []petrinet.MarkInt) {
-	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	logger.SetOutput(ioutil.Discard)
+	logger = log.New(os.Stdout, "[PNparser] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
+	logger.SetOutput(io.Discard)
 	is := antlr.NewInputStream(text)
 	lexer := NewJSPNLLexer(is)
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
@@ -25,7 +25,7 @@ func PNreadFromText(text string) (*petrinet.Net, []petrinet.MarkInt) {
 
 func PNreadFromFile(fileName string) (*petrinet.Net, []petrinet.MarkInt, error) {
 	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 	is, err := antlr.NewFileStream(fileName)
 	if err != nil {
 		return nil, make([]petrinet.MarkInt, 0), err

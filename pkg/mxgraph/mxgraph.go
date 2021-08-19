@@ -6,10 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"io"
-	_ "log"
+	"log"
 	"net/url"
-	_ "os"
-	_ "strconv"
 	"strings"
 )
 
@@ -96,51 +94,6 @@ func decode(data []byte) ([]byte, error) {
 	return []byte(s), nil
 }
 
-// func getCells(data []byte) ([]mxCell, error) {
-// 	model := mxGraphModel{}
-// 	if err := xml.Unmarshal(data, &model); err == nil {
-// 		for i, _ := range model.Root.Cells {
-// 			retval := getStyle(&model.Root.Cells[i])
-// 			model.Root.Cells[i].StyleMap = retval
-// 		}
-// 		return model.Root.Cells, nil
-// 	} else {
-// 		return nil, err
-// 	}
-// }
-
-// func getStyle(c *mxCell) map[string]string {
-// 	styles := make(map[string]string)
-// 	for _, x := range strings.Split(c.Style, ";") {
-// 		e := strings.Split(x, "=")
-// 		switch len(e) {
-// 		case 1:
-// 			styles[e[0]] = ""
-// 		case 2:
-// 			styles[e[0]] = e[1]
-// 		default:
-// 			panic("Error: Style in Cell")
-// 		}
-// 	}
-// 	return styles
-// }
-
-// func GetGraphModel(data []byte) ([]mxCell, error) {
-// 	model := mxFile{}
-// 	if err := xml.Unmarshal(data, &model); err == nil {
-// 		diagram := mxDiagram{}
-// 		if s, err := decode(model.Diagram); err == nil {
-// 			return getCells(s)
-// 		} else if err := xml.Unmarshal(model.Description, &diagram); err == nil {
-// 			return getCells(diagram.Description)
-// 		} else {
-// 			return nil, err
-// 		}
-// 	} else {
-// 		return getCells(data)
-// 	}
-// }
-
 func getCells(data []byte) ([]MxElement, error) {
 	model := mxGraphModel{}
 	elems := make([]MxElement, 0)
@@ -208,7 +161,7 @@ func (c *mxCell) getStyle(properties map[string]string) {
 			case 2:
 				properties[e[0]] = e[1]
 			default:
-				panic("Error: Style in Cell")
+				log.Panic("Error: Style in Cell")
 			}
 		}
 	}
