@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/okamumu/gospn/pkg/matout"
 	"github.com/okamumu/gospn/pkg/mt"
-	"github.com/okamumu/gospn/pkg/mxgraph"
 	"github.com/okamumu/gospn/pkg/parser"
 	"github.com/okamumu/gospn/pkg/petrinet"
 	"io"
@@ -48,25 +47,12 @@ func main() {
 }
 
 func cmdview(args []string) {
-	xmlfile := flag.String("x", "", "XML file for drawing Petrinet")
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "", "Output file (dot file)")
 	flag.CommandLine.Parse(args)
 
 	var defs string
-	if *xmlfile != "" {
-		if xml, err := os.ReadFile(*xmlfile); err == nil {
-			p := &mxgraph.PetriParser{}
-			b, err := p.ParseXML(xml)
-			if err != nil {
-				panic(err)
-			}
-			defs = string(b)
-			fmt.Println(string(b))
-		} else {
-			panic(err)
-		}
-	} else if *infile != "" {
+	if *infile != "" {
 		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
@@ -98,7 +84,6 @@ func cmdview(args []string) {
 }
 
 func cmdmark(args []string) {
-	xmlfile := flag.String("x", "", "XML file for drawing Petrinet")
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
 	tangible := flag.Bool("t", false, "Create a (semi) tangible marking")
@@ -109,19 +94,7 @@ func cmdmark(args []string) {
 	flag.CommandLine.Parse(args)
 
 	var defs string
-	if *xmlfile != "" {
-		if xml, err := os.ReadFile(*xmlfile); err == nil {
-			p := &mxgraph.PetriParser{}
-			b, err := p.ParseXML(xml)
-			if err != nil {
-				panic(err)
-			}
-			defs = string(b)
-			fmt.Println(string(b))
-		} else {
-			panic(err)
-		}
-	} else if *infile != "" {
+	if *infile != "" {
 		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
@@ -248,7 +221,6 @@ func cmdmark(args []string) {
 }
 
 func cmdsim(args []string) {
-	xmlfile := flag.String("x", "", "XML file for drawing Petrinet")
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
 	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
@@ -258,19 +230,7 @@ func cmdsim(args []string) {
 	flag.CommandLine.Parse(args)
 
 	var defs string
-	if *xmlfile != "" {
-		if xml, err := os.ReadFile(*xmlfile); err == nil {
-			p := &mxgraph.PetriParser{}
-			b, err := p.ParseXML(xml)
-			if err != nil {
-				panic(err)
-			}
-			defs = string(b)
-			fmt.Println(string(b))
-		} else {
-			panic(err)
-		}
-	} else if *infile != "" {
+	if *infile != "" {
 		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
@@ -349,7 +309,6 @@ func cmdsim(args []string) {
 }
 
 func cmdtest(args []string) {
-	xmlfile := flag.String("x", "", "XML file for drawing Petrinet")
 	infile := flag.String("i", "", "Petrinet definition file")
 	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
@@ -358,19 +317,7 @@ func cmdtest(args []string) {
 	flag.CommandLine.Parse(args)
 
 	var defs string
-	if *xmlfile != "" {
-		if xml, err := os.ReadFile(*xmlfile); err == nil {
-			p := &mxgraph.PetriParser{}
-			b, err := p.ParseXML(xml)
-			if err != nil {
-				panic(err)
-			}
-			defs = string(b)
-			fmt.Println(string(b))
-		} else {
-			panic(err)
-		}
-	} else if *infile != "" {
+	if *infile != "" {
 		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
