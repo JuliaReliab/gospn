@@ -598,5 +598,5 @@ When we add the property `type` with the value `comment`, the object is ignored.
 #### Template
 
 Template URL:
-[https://raw.githubusercontent.com/okamumu/gospn/master/example/mrsp.xml](https://raw.githubusercontent.com/okamumu/gospn/master/example/mrsp.xml)
+[https://raw.githubusercontent.com/okamumu/gospn/master/example/mrspn.xml](https://raw.githubusercontent.com/okamumu/gospn/master/example/mrspn.xml)
 
