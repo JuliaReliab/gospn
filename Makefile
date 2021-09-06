@@ -12,20 +12,20 @@ build: deps
 test: test_matout test_petrinet test_parser test_mxgraph
 
 test_matout:
-	cd pkg/matout/ && go test -cover
+	cd pkg/matout/ && go test -v -cover
 
 test_petrinet:
-	cd pkg/petrinet/ && go test -cover
+	cd pkg/petrinet/ && go test -v -cover
 
 test_parser:
-	cd pkg/parser/ && go test -cover
+	cd pkg/parser/ && go test -v -cover
 
 test_mxgraph:
-	cd pkg/mxgraph/ && go test -cover
+	cd pkg/mxgraph/ && go test -v -cover
 
 test_benchmark:
 	cd test/ &&\
-	go test -bench GoSPN -benchmem -o pprof/test.bin  -cpuprofile pprof/cpu.out . &&\
+	go test -v -bench GoSPN -benchmem -o pprof/test.bin  -cpuprofile pprof/cpu.out . &&\
 	go tool pprof --svg pprof/test.bin pprof/cpu.out > pprof/test.svg
 
 build_all: build build_linux build_darwin build_windows

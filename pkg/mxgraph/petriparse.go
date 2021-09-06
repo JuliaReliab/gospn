@@ -47,9 +47,9 @@ func (p *PetriParser) ParseXML(data []byte) ([]byte, error) {
 				labels = append(labels, x)
 			case "edgeLabel":
 				edgelabels = append(edgelabels, x)
-			case "preprocess":
+			case "pre":
 				pre = append(pre, x)
-			case "postprocess":
+			case "post":
 				post = append(post, x)
 			default:
 			}
@@ -110,7 +110,7 @@ func matchingNode(nodes map[string]MxElement, labels []MxElement) {
 
 func (c *MxElement) getObj() string {
 	switch c.Type {
-	case "place", "imm", "exp", "gen", "preprocess", "postprocess":
+	case "place", "imm", "exp", "gen", "pre", "post":
 		return c.Type
 	case "vertex":
 		return c.getNode()
@@ -205,7 +205,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 
 	fmt.Fprintln(w, "// Begin: This part has been generated automatically from XML file.")
 
-	// preprocess
+	// pre
 	fmt.Fprintln(w)
 	for _, x := range pre {
 		fmt.Fprintln(w, toText(x.Value))
@@ -340,7 +340,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 		}
 	}
 
-	// postprocess
+	// post
 	fmt.Fprintln(w)
 	for _, x := range post {
 		fmt.Fprintln(w, toText(x.Value))
