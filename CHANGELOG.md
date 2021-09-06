@@ -1,3 +1,7 @@
+# gospn 0.10.2
+
+- add a binary to convert MxGraph data to Petrinet definition file
+
 # gospn 0.10.1
 
 - build with go 1.16
