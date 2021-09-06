@@ -1,16 +1,15 @@
 package main
 
 import (
-	"../pkg/matout"
-	"../pkg/mt"
-	"../pkg/parser"
-	"../pkg/petrinet"
 	"bufio"
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	// "math/rand"
+	"github.com/okamumu/gospn/pkg/matout"
+	"github.com/okamumu/gospn/pkg/mt"
+	"github.com/okamumu/gospn/pkg/parser"
+	"github.com/okamumu/gospn/pkg/petrinet"
+	"io"
 	"os"
 	"time"
 )
@@ -19,11 +18,11 @@ func usage() {
 	msg := `usage: gospn <command> [<args>]
 
 commands: (command help: gospn command -h)
-  view  Output a dot file to draw a Petrinet
-  mark  Make a marking graph and output matrices
-  sim   Monte Carlo simulation
-  test  Simulate a path of markings
-  help  Display this message`
+  view    Output a dot file to draw a Petrinet
+  mark    Make a marking graph and output matrices
+  sim     Monte Carlo simulation
+  test    Simulate a path of markings
+  help    Display this message`
 
 	fmt.Println(msg)
 }
@@ -50,21 +49,29 @@ func main() {
 func cmdview(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "", "Output file (dot file)")
+	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
+	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	flag.CommandLine.Parse(args)
 
 	var defs string
 	if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
+	}
+	if *params0 != "" {
+		defs = *params0 + "\n" + defs + "\n"
+	}
+	if *params != "" {
+		defs = defs + "\n" + *params + "\n"
 	}
 	net, _ := parser.PNreadFromText(defs)
 
@@ -91,22 +98,26 @@ func cmdmark(args []string) {
 	state := flag.String("s", "", "Output a state file")
 	markgraph := flag.String("m", "", "Output a dot file to draw the marking graph")
 	groupmarkgraph := flag.String("g", "", "Output a dot file to draw the group marking graph")
-	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
+	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
+	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	flag.CommandLine.Parse(args)
 
 	var defs string
 	if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
+	}
+	if *params0 != "" {
+		defs = *params0 + "\n" + defs + "\n"
 	}
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"
@@ -224,7 +235,8 @@ func cmdmark(args []string) {
 func cmdsim(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
-	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
+	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
+	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
 	configfile := flag.String("f", "", "Configuration file for simulation")
 	configure := flag.String("c", "", "JSON configuration (text)")
@@ -232,17 +244,20 @@ func cmdsim(args []string) {
 
 	var defs string
 	if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
+	}
+	if *params0 != "" {
+		defs = *params0 + "\n" + defs + "\n"
 	}
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"
@@ -252,7 +267,7 @@ func cmdsim(args []string) {
 	var config petrinet.PNSimConfig
 	var json []byte
 	if *configfile != "" {
-		if j, err := ioutil.ReadFile(*configfile); err == nil {
+		if j, err := os.ReadFile(*configfile); err == nil {
 			json = j
 		} else {
 			panic(err)
@@ -311,7 +326,8 @@ func cmdsim(args []string) {
 
 func cmdtest(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
-	params := flag.String("p", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
+	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
+	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
 	elapsedtime := flag.Float64("t", 0.0, "Maximum elapsed time for simulation")
 	maxcount := flag.Int("n", 100, "Maximum number of firings for simulation")
@@ -319,17 +335,20 @@ func cmdtest(args []string) {
 
 	var defs string
 	if *infile != "" {
-		if b, err := ioutil.ReadFile(*infile); err == nil {
+		if b, err := os.ReadFile(*infile); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
 	} else {
-		if b, err := ioutil.ReadAll(os.Stdin); err == nil {
+		if b, err := io.ReadAll(os.Stdin); err == nil {
 			defs = string(b)
 		} else {
 			panic(err)
 		}
+	}
+	if *params0 != "" {
+		defs = *params0 + "\n" + defs + "\n"
 	}
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"

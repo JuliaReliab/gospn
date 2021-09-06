@@ -15,7 +15,7 @@ where
 make build
 ```
 
-The tool has been developed with Go 1.10.4 on linux/amd64. A single binary `gospn` is built in `bin` directory.
+The tool has been developed with Go 1.16 on linux/amd64. A single binary `gospn` is built in `bin` directory.
 If you want to do the cross compile, please uses
 
 ```sh
@@ -27,7 +27,7 @@ make build_all
 ### Draw a perinet
 
 ```sh
-gospn view [-i <infile>] [-o <outfile>]
+gospn view [-i <infile>] [-o <outfile>] [-pre <string>] [-post <string>]
 ```
 
 The inputfile is a text file that describes the definition of Perinet (see `Petrinet definition` in detail).
@@ -41,24 +41,26 @@ the tool displays the contens of dot file with stdout.
 ### Generate marking
 
 ```sh
-gospn mark [-i <infile>] [-o <outfile>] [-t] [-m <filename>] [-g <filename>] [-p <string>]
+gospn mark [-i <infile>] [-o <outfile>] [-t] [-m <filename>] [-g <filename>] [-pre <string>] [-post <string>]
 ```
 
 The tool analyzes the Petrinet and outputs MATLAB matrix for the transition matrix. The option `-t` creates a (semi) tangible marking.
-The option `-m` outputs a dot file to draw the marking graph. The option `-g` outputs a dot file to draw a group marking. The option `-p`
-is to put some additional defintion like parameters to the Petrinet definition.
+The option `-m` outputs a dot file to draw the marking graph. The option `-g` outputs a dot file to draw a group marking.
+The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
+The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
 
 ### Monte Carlo simulation
 
 ```sh
-gospn sim [-i <infile>] [-o <outfile>] [-s <int>] [-f <file>] [-c <string>] [-p <string>]
+gospn sim [-i <infile>] [-o <outfile>] [-s <int>] [-f <file>] [-c <string>] [-pre <string>] [-post <string>]
 ```
 
 Simulate a given Petrinet and compute rewards based on Monte Carlo simulation. The option `-o` indicates the name of MATLAB
 matrix file to store the vectors for rewards. The option `-s` is a seed of random number generator.
 The option `-f` indicates a configuration file for the simulation that are written by
 JSON. Also, the option `-c` provides the JSON configuration as strings. If both `-f` and `-c` are given, the option `-f` is used.
-The option `-p` is to put some additional defintion like parameters to the Petrinet definition.
+The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
+The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
 
 An example of configuration is given by
 ```json
@@ -77,17 +79,196 @@ In `rewards`, we should set strings of rewards that are described in the Petrine
 ### Monte Carlo simulation for one path
 
 ```sh
-gospn test [-i <infile>] [-s <int>] [-t <value>] [-n <int>]
+gospn test [-i <infile>] [-s <int>] [-t <value>] [-n <int>] [-pre <string>] [-post <string>]
 ```
 
 Simulate one path for a given Petrinet. For example, this is used for a testing of Petrinet definition.
 The option `-s` is a seed of random number generator. The option `-t` indicates the stop condition with
-elapsed time. The option `-n` indicates the stop condition based on the number of firrings. This mode just
-displays a path to stdout.
+elapsed time. The option `-n` indicates the stop condition based on the number of firrings.
+The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
+The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
+This mode just displays a path to stdout.
 
 ## Definition of Petrinet
 
-### Example of SPN
+#### Expressions
+
+The expression in the definition file consists of values (bool, int, float), variables, operators and functions.
+
+#### Values:
+
+- bool: `true`, `false`
+- int: `0`, `1`, ...
+- float: `0.0`, `1.0`, `1.0e-4`, ...
+
+#### Variables:
+
+We use the characters; alphabets, digits, underline and period for the label of variable.
+Variables can be defined without an explict declaration like a script language. 
+
+```
+a = 1   // a is assigned by 1
+b = 1.0 // b is assigned by 2
+
+c = a + b // c is assinged by a plus of 1 + 1.0. c becomes float
+
+x = y
+y = 10 // x also becomes 10 (lazy eval)
+```
+
+#### Operators
+
+- `+`, `-`, `*`, `/`, `div`: Arithmetic operators. `div` is an integer division.
+- `==`, `!=`, `<`, `<=`, `>`, `>=`: Comparison operators
+- `!`, `&&`, `||`: Logical operators
+- `#`: The operator to represent the number of tokens.  `#<place>` indicates the number of tokens in `<place>`.
+- `?`: The operator to represent the enable condition. `?<transition>` indicates the enable condition of `<transition>`.
+
+#### Functions
+
+- `ifelse`: If-then-else function. `ifelse(<condition>, <expression1>, <expression2>)` means that if `<condition>` holds,
+the function returns `<expression1>`. Otherwise, the function returns `<expression2>`.
+- `exp`, `log`, `sqrt`, `pow`, `min`, `max`: Mathematical functions
+- `det`, `unif`, `expdist`: Distribution functions.
+  - `det`: Constant distribution. `det(10)` means the constant distribution whose sample is 10.
+  - `unif`: Uniform distribution. `unif(0, 1)` means the uniform distribution on the domain (0,1).
+  - `expdist`: Exponential distribution. `expdist(2)` means the exponential distribution whose rate is 2.
+
+### Place
+
+```
+place <label> (init = <int>, max = <int>)
+```
+
+Define a place with name `<label>`.
+
+Options:
+- `init`: An integer means the number of initial tokes that put on the place. The default is 0.
+- `max`: An integer means the maximum number of tokens. If the number of tokens exceeds the maximum number of
+tokens by some firings, the number of tokens is forced to the maximum number of tokens.
+The default is 255.
+
+### Transitions
+
+```
+imm <label> (weight = <expression>, guard = <expression>, priority = <int>, vanishable = <bool>) {
+  <update statements>
+}
+```
+
+Define an IMM (immediate) transition with name `<label>`.
+The parentheses indicates options, and the curly brackets indicates the procedure
+after firing of this transition. The parts of parentheses and the curly brackets are
+optional.
+
+Options:
+- `weight`: The expression to determine the probabilistic priority of
+firing when there are some competitive IMM transitions.
+The large weight has the high priority probabilistically to other IMM transitions.
+The default is 1.0.
+- `guard`: The expression to indicate the guard condition.
+- `priority`: An integer indicating the deterministic priority of firing
+when there are some competitive IMM transitions.
+The large priority has the high priority to other competitive IMM transitions.
+The default is 0.
+- `vanishable`: A logical whether the IMM transition can be vanished in the (semi-)tangible marking.
+If `vanishable` is false, the IMM transition is never vanished even if it satisfies the vanishing condition.
+Otherwise, if `vanishable` is true, the IMM transition may be vanished when the option `-t' is selected in the marking mode.
+But, note that the IMM transition is vanished by the option `-t` only when the vanishing condition holds.
+The default is true.
+
+Update:
+The `<update statements>` describes an additional procedure to change the marking after firing.
+
+```
+{
+  #P1 = #P1 + 1
+  #P2 = #P2 - 1
+}
+```
+For example, the above shows that the number of tokens in P1 is increases
+by one and the number of tokens in P2 decreases by one for the marking just
+after the firing of this transition.
+
+```
+exp <label> (rate = <expression>, guard = <expression>, priority = <int>) {
+  <update statements>
+}
+```
+
+Define an EXP transition with name `<label>`.
+The parentheses indicates options, and the curly brackets indicates the procedure
+after firing of this transition. The parts of parentheses and the curly brackets are
+optional.
+
+Options:
+- `rate`: The expression of transition rate. The default is 1.0.
+- `guard`: The expression to indicate the guard condition.
+- `priority`: An integer indicating the deterministic priority of firing
+when there are some competitive EXP/GEN transitions.
+The large priority has the high priority to other competitive EXP/GEN transitions.
+The default is 0.
+
+```
+gen <label> (dist = <function>, guard = <expression>, policy = prd | prs | pri, priority = <int>) {
+  <update statements>
+}
+```
+
+Define a GEN transition with name `<label>`.
+The parentheses indicates options, and the curly brackets indicates the procedure
+after firing of this transition. The parts of parentheses and the curly brackets are
+optional.
+
+Options:
+- `dist`: The name of general distribution with parameters. The default is `det(1)`
+- `guard`: The expression to indicate the guard condition.
+- `policy`: The policy of age of GEN transition when the preemption occurs. The default is `prd`.
+  - `prd`: Preemptive repeat different. The age of GEN transition is renewed when the preemption occurs.
+  - `prs`: Preemptive resume. The age of GEN transition stops and resumes when the preemption occurs.
+  - `pri`: Preemptive repeat identical. The firing time is fixed by a random variable.
+  The age of GEN transition becomes zero when the preemption occurs. This policy is effective only in the simulation.
+- `priority`: An integer indicating the deterministic priority of firing
+when there are some competitive EXP/GEN transitions.
+The large priority has the high priority to other competitive EXP/GEN transitions.
+The default is 0.
+
+### Arc
+
+```
+arc <source> to <target> (multi = <expression>)
+iarc <place> to <transition> (multi = <expression>)
+oarc <transition> to <place> (multi = <expression>)
+```
+
+Define an arc to connect between place and transition. `iarc` is the definition
+of an input arc from a place to a transition. `oarc` is the definition of an
+output arc from a transition to a place. `arc` is the definition of an input
+or output arc that is detected by checking objects put on `<source>` and
+`<target>` automatically.
+
+Option:
+- `multi`: The expression indicating the multiplicity of arc. The default is 1.
+
+```
+harc <place> to <transition> (multi = <expression>)
+```
+
+Define an inhibited arc from a place to a transition.
+
+Option:
+- `multi`: The expression indicating the multiplicity of arc. The default is 1.
+
+### Reward
+
+To be written.
+
+
+### Block
+
+To be written.
+
+### Example of definition (SPN)
 
 ```
 /*
@@ -126,9 +307,7 @@ mu = 1.0
 reward numOfCustomer #buf
 ```
 
-To be written
-
-### Example of GSPN
+### Example of definition (GSPN)
 
 ```
 /*
@@ -277,9 +456,7 @@ reward rwd5 ifelse(#Pw >= 1, 1.0, 0.0)
 reward rwd6 ifelse(#Pc >= 1, 1.0, 0.0)
 ```
 
-To be written
-
-### Example of MRSPN
+### Example of definition (MRSPN)
 
 ```
 /*
@@ -337,4 +514,89 @@ MTTR1 = 2 // [hours]
 MTTR2 = 24 // [hours]
 ```
 
-To be written
+## Graphical Definition
+
+The gospn provides a tool to convert a diagram to text-based Petrinet definition file.
+
+```sh
+mxgraph2spn [-i <infile>] [-o <outfile>]
+```
+
+The inputfile is an XML file (the extension of .drawio or .xml) that is generated by [draw.io/diagrams.net](https://www.diagrams.net/).
+The output is a text-based Petrinet definition file this can be used for the inputfile of gospn directly.
+When the option `i` is omitted, the tool uses stdin to read the XML.
+Also, when the option `o` is omitted, the tool displays the Petrinet definition to stdout.
+
+### How to draw a Petrinet in diagram.net
+
+#### Place
+
+To draw places, we use `EditData` for a component.
+
+1. Select an object on diagrams.net
+2. Select the `Arrange` tab in the righthand panel, or right click the object.
+3. Select `EditData`
+4. Add the property `type`
+5. Put `place` into the property `type`
+
+The tool recognizes a place object if it has the property `type=place` even if the object is not a circle.
+The other properties `init` and `max` are also used by adding them as the properties of diagram object.
+Furthermore, if we put a text into an object (the text becomes a label property of object), the text is used
+for `init` of place in the text-based Petrinet definition.
+The label of place uses the closest text object among the text objects having the same parent.
+Therefore, if the place object and the text object are grouped, the text object is used as
+the label of place.
+
+#### IMM Transition
+
+Similarly to place, we add the property `type` and put the value `imm` to the `type` property.
+If we add the properties `weight`, `guard`, `priority` and `vanishable` to the property of object,
+their values becomes the values of corresponding options in the text-based Petrinet definition.
+The label of transition uses the closest text object among the text objects having the same parent.
+Therefore, if the transition object and the text object are grouped, the text object is used as
+the label of transition.
+
+#### EXP Transition
+
+Add the property `type` with the value `exp`.
+If we add the properties `rate`, `guard` and `priority` to the property of object,
+their values becomes the values of corresponding options in the text-based Petrinet definition.
+The label of transition uses the closest text object among the text objects having the same parent.
+Therefore, if the transition object and the text object are grouped, the text object is used as
+the label of transition.
+
+#### GEN Transition
+
+Add the property `type` with the value `gen`.
+If we add the properties `dist`, `guard`, `policy` and `priority` to the property of object,
+their values becomes the values of corresponding options in the text-based Petrinet definition.
+The label of transition uses the closest text object among the text objects having the same parent.
+Therefore, if the transition object and the text object are grouped, the text object is used as
+the label of transition.
+
+#### Arc
+
+If place and transition objects are connected by a directed edge,
+the edge corresponds to `arc` in the text-based Petrinet definition.
+When the edge has an edgelabel, the edgelabel gives the `multi` option.
+
+#### Inhibit Arc
+
+If place and transition objects are connected by a directed edge whose endarrow is oval,
+the edge corresponds to `harc` in the text-based Petrinet definition.
+When the edge has an edgelabel, the edgelabel gives the `multi` option.
+
+#### Pre/Post
+
+When we add the property `type` with the value `pre` or `post`, the text written in the
+label of this object put to the beginning/end of Petrinet defition.
+
+#### Comment
+
+When we add the property `type` with the value `comment`, the object is ignored.
+
+#### Template
+
+Template URL:
+[https://raw.githubusercontent.com/okamumu/gospn/master/example/mrsp.xml](https://raw.githubusercontent.com/okamumu/gospn/master/example/mrsp.xml)
+
