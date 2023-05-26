@@ -6,7 +6,7 @@ import (
 )
 
 func TestPNreader1(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/spnp_example1.spn")
+	net, imark, err := PNreadFromFile("../../example/spnp_example1.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -15,7 +15,7 @@ func TestPNreader1(t *testing.T) {
 }
 
 func TestPNreader2(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/spnp_example2.spn")
+	net, imark, err := PNreadFromFile("../../example/spnp_example2.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -24,7 +24,7 @@ func TestPNreader2(t *testing.T) {
 }
 
 func TestPNreader3(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/spnp_example3.spn")
+	net, imark, err := PNreadFromFile("../../example/spnp_example3.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -33,7 +33,7 @@ func TestPNreader3(t *testing.T) {
 }
 
 func TestPNreader4(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/spnp_example4.spn")
+	net, imark, err := PNreadFromFile("../../exmple/spnp_example4.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -42,7 +42,7 @@ func TestPNreader4(t *testing.T) {
 }
 
 func TestPNreader5(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/spnp_example5.spn")
+	net, imark, err := PNreadFromFile("../../example/spnp_example5.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -51,7 +51,7 @@ func TestPNreader5(t *testing.T) {
 }
 
 func TestPNreader6(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/spnp_example6.spn")
+	net, imark, err := PNreadFromFile("../../example/spnp_example6.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -60,7 +60,7 @@ func TestPNreader6(t *testing.T) {
 }
 
 func TestPNreader7(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/iaas_cloud.spn")
+	net, imark, err := PNreadFromFile("../../example/iaas_cloud.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -69,7 +69,7 @@ func TestPNreader7(t *testing.T) {
 }
 
 func TestPNreader8(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/raid6.spn")
+	net, imark, err := PNreadFromFile("../../example/raid6.spn")
 	if err != nil {
 		t.Error("error")
 	}
@@ -78,7 +78,7 @@ func TestPNreader8(t *testing.T) {
 }
 
 func TestPNreader9(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../test/data/raid10.spn")
+	net, imark, err := PNreadFromFile("../../example/raid10.spn")
 	if err != nil {
 		t.Error("error")
 	}
