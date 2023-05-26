@@ -1,3 +1,7 @@
+# gospn 0.11.0
+
+- integrate the conversion from XML to Petrinet definition file into gospn binary
+
 # gospn 0.10.2
 
 - add a binary to convert MxGraph data to Petrinet definition file

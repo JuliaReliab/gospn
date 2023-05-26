@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/okamumu/gospn/pkg/mxgraph"
 	"github.com/okamumu/gospn/pkg/matout"
 	"github.com/okamumu/gospn/pkg/mt"
 	"github.com/okamumu/gospn/pkg/parser"
@@ -22,6 +23,7 @@ commands: (command help: gospn command -h)
   mark    Make a marking graph and output matrices
   sim     Monte Carlo simulation
   test    Simulate a path of markings
+  gen     Generate Petrinet definition from XML file
   help    Display this message`
 
 	fmt.Println(msg)
@@ -39,6 +41,8 @@ func main() {
 		cmdsim(args)
 	case "test":
 		cmdtest(args)
+	case "gen":
+		cmdgen(args)
 	case "help":
 		usage()
 	default:
@@ -368,3 +372,50 @@ func cmdtest(args []string) {
 		fmt.Println(i, x.String(net))
 	}
 }
+
+func cmdgen(args []string) {
+	infile := flag.String("i", "", "XML file for drawing Petrinet")
+	outfile := flag.String("o", "", "Output file (spn file)")
+	flag.CommandLine.Parse(args)
+
+	var defs string
+	if *infile != "" {
+		if xml, err := os.ReadFile(*infile); err == nil {
+			p := &mxgraph.PetriParser{}
+			b, err := p.ParseXML(xml)
+			if err != nil {
+				panic(err)
+			}
+			defs = string(b)
+		} else {
+			panic(err)
+		}
+	} else {
+		if xml, err := io.ReadAll(os.Stdin); err == nil {
+			p := &mxgraph.PetriParser{}
+			b, err := p.ParseXML(xml)
+			if err != nil {
+				panic(err)
+			}
+			defs = string(b)
+		} else {
+			panic(err)
+		}
+	}
+
+	if *outfile != "" {
+		file, err := os.Create(*outfile)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+		writer := bufio.NewWriter(file)
+		fmt.Fprint(writer, defs)
+		writer.Flush()
+	} else {
+		writer := bufio.NewWriter(os.Stdout)
+		fmt.Fprint(writer, defs)
+		writer.Flush()
+	}
+}
+
