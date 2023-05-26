@@ -545,7 +545,7 @@ Please add the shape library `MRSPN`
 3. Fill out the following URL
 
 ```
-https://raw.githubusercontent.com/JuliaReliab/gospn/master/diagrams/MRSPN.xml
+https://gist.githubusercontent.com/okamumu/d10aabf442905b51f627df803139bd87/raw/eee5ebf1d3730913afb58345804bf08527979bca/MRSPN.xml
 ```
 
 The shape library includes the components; Place, IMM, EXP and GEN which have the required properties.
