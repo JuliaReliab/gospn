@@ -373,6 +373,12 @@ func (net *Net) SetReward(str string, rwd func([]MarkInt) float64) {
 	net.rewardfunc[str] = rwd
 }
 
+// GetReward returns the reward function registered under the given label.
+func (net *Net) GetReward(str string) (func([]MarkInt) float64, bool) {
+	rwd, ok := net.rewardfunc[str]
+	return rwd, ok
+}
+
 func (net *Net) AddMarkGroupString(f func([]MarkInt) string) {
 	net.markgroupstring = append(net.markgroupstring, f)
 }

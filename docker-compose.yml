@@ -1,0 +1,8 @@
+services:
+  gospn:
+    build: .
+    volumes:
+      - .:/src
+      - gomod:/go/pkg/mod
+volumes:
+  gomod:

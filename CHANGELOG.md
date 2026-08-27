@@ -1,3 +1,14 @@
+# gospn 0.11.1
+
+- bugfix: integer subtraction (e.g. `reward r #P1 - #P2`) was evaluated as addition
+- bugfix: `!=` between an integer and a float was evaluated as `==`
+- bugfix: `pow` with an integer base and a negative integer exponent looped forever
+- bugfix: missing closing parenthesis in the symbolic form of `pow`/`max`/`min`
+- bugfix: TestPNreader4 read a misspelled path and always failed
+- rename MATLABBuffer.WriteByte to PutByte (it conflicted with io.ByteWriter)
+- add a Dockerfile / docker-compose.yml for the build and test environment
+- apply gofmt
+
 # gospn 0.11.0
 
 - integrate the conversion from XML to Petrinet definition file into gospn binary

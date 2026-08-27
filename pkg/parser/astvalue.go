@@ -129,7 +129,7 @@ func (a ASTString) plus(b interface{}) (*ASTValue, error) {
 func (a ASTInt) minus(b interface{}) (*ASTValue, error) {
 	switch v := b.(type) {
 	case ASTInt:
-		return MakeValue(a + v), nil
+		return MakeValue(a - v), nil
 	case ASTFloat:
 		return MakeValue(ASTFloat(a) - v), nil
 	case ASTString:
@@ -391,7 +391,7 @@ func (a ASTInt) neq(b interface{}) (*ASTValue, error) {
 	case ASTInt:
 		return MakeValue(a != v), nil
 	case ASTFloat:
-		return MakeValue(ASTFloat(a) == v), nil
+		return MakeValue(ASTFloat(a) != v), nil
 	case ASTString:
 		return MakeValue(fmt.Sprintf("(%d != %s)", a, v)), nil
 	default:
@@ -1016,6 +1016,9 @@ func powf(x, y *ASTValue) (*ASTValue, error) {
 func (x ASTInt) powf(y interface{}) (*ASTValue, error) {
 	switch v := y.(type) {
 	case ASTInt:
+		if v < 0 {
+			return MakeValue(math.Pow(float64(x), float64(v))), nil
+		}
 		return MakeValue(powi(int32(x), int32(v))), nil
 	case ASTFloat:
 		return MakeValue(math.Pow(float64(x), float64(v))), nil
@@ -1044,7 +1047,7 @@ func (x ASTString) powf(y interface{}) (*ASTValue, error) {
 	case ASTInt:
 		return MakeValue(fmt.Sprintf("pow(%s, %d)", x, v)), nil
 	case ASTFloat:
-		return MakeValue(fmt.Sprintf("pow(%s, %e", x, v)), nil
+		return MakeValue(fmt.Sprintf("pow(%s, %e)", x, v)), nil
 	case ASTString:
 		return MakeValue(fmt.Sprintf("pow(%s, %s)", x, v)), nil
 	default:
@@ -1114,7 +1117,7 @@ func (x ASTString) max(y interface{}) (*ASTValue, error) {
 	case ASTInt:
 		return MakeValue(fmt.Sprintf("max(%s, %d)", x, v)), nil
 	case ASTFloat:
-		return MakeValue(fmt.Sprintf("max(%s, %e", x, v)), nil
+		return MakeValue(fmt.Sprintf("max(%s, %e)", x, v)), nil
 	case ASTString:
 		return MakeValue(fmt.Sprintf("max(%s, %s)", x, v)), nil
 	default:
@@ -1172,7 +1175,7 @@ func (x ASTString) min(y interface{}) (*ASTValue, error) {
 	case ASTInt:
 		return MakeValue(fmt.Sprintf("min(%s, %d)", x, v)), nil
 	case ASTFloat:
-		return MakeValue(fmt.Sprintf("min(%s, %e", x, v)), nil
+		return MakeValue(fmt.Sprintf("min(%s, %e)", x, v)), nil
 	case ASTString:
 		return MakeValue(fmt.Sprintf("min(%s, %s)", x, v)), nil
 	default:

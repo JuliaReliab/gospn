@@ -52,15 +52,18 @@ func (m *exitMark) union(child *exitMark) {
 }
 
 // The structure of DFS (depth first search) to make a marking graph.
-//   markGenerator: A generator to create a unique object of mark
-//   genVecGenerator: A gnerator to create a unique object of GenVec
-//   novisited: A stack for the mark that is visited next
-//   visited: A set for the marks that are already visited
+//
+//	markGenerator: A generator to create a unique object of mark
+//	genVecGenerator: A gnerator to create a unique object of GenVec
+//	novisited: A stack for the mark that is visited next
+//	visited: A set for the marks that are already visited
+//
 // The following data are required to create an instance of marking graph
-//   marks: A slice for all the visited marks
-//   markToGenvec: A map to indicate a GenVec that a given mark belongs to
-//   markToGroupType: A map to indicate a GroupType that a given mark belongs to
-//   links: A scile for links between all marks
+//
+//	marks: A slice for all the visited marks
+//	markToGenvec: A map to indicate a GenVec that a given mark belongs to
+//	markToGroupType: A map to indicate a GroupType that a given mark belongs to
+//	links: A scile for links between all marks
 type dfstangible struct {
 	markGenerator   MarkGeneratorInterface
 	genVecGenerator GenVecGeneratorInterface

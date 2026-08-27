@@ -95,8 +95,9 @@ func (b *MATLABBuffer) Write(data interface{}) *MATLABBuffer {
 	return b
 }
 
-// The method to write a byte data.
-func (b *MATLABBuffer) WriteByte(data byte) *MATLABBuffer {
+// The method to write a byte data. Named PutByte rather than WriteByte because
+// it returns the buffer for chaining, which is incompatible with io.ByteWriter.
+func (b *MATLABBuffer) PutByte(data byte) *MATLABBuffer {
 	b.buf.WriteByte(data)
 	return b
 }

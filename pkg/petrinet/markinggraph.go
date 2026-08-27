@@ -363,7 +363,6 @@ func (mat *CSC) Get() ([]int32, int, []int, []int, []float64) {
 // as an element of transition.
 //
 // The behavior of this function is unknown if there are two or more transitions between the same marks.
-//
 func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 
 	// The structure to represent an element of COO matrix

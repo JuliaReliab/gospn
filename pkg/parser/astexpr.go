@@ -1,9 +1,9 @@
 package parser
 
 import (
-	"github.com/okamumu/gospn/pkg/petrinet"
 	"errors"
 	"fmt"
+	"github.com/okamumu/gospn/pkg/petrinet"
 )
 
 type ASTExpr interface {

@@ -1,10 +1,10 @@
 package parser
 
 import (
-	"github.com/okamumu/gospn/pkg/petrinet"
 	"bytes"
 	"fmt"
 	"github.com/antlr/antlr4/runtime/Go/antlr"
+	"github.com/okamumu/gospn/pkg/petrinet"
 	"log"
 	"os"
 	"testing"

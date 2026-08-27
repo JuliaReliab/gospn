@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/okamumu/gospn/pkg/petrinet"
 	"fmt"
+	"github.com/okamumu/gospn/pkg/petrinet"
 )
 
 // Get an integer from ASTExpr. When AST cannot be converted to integer,

@@ -33,7 +33,7 @@ func TestPNreader3(t *testing.T) {
 }
 
 func TestPNreader4(t *testing.T) {
-	net, imark, err := PNreadFromFile("../../exmple/spnp_example4.spn")
+	net, imark, err := PNreadFromFile("../../example/spnp_example4.spn")
 	if err != nil {
 		t.Error("error")
 	}

@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/okamumu/gospn/pkg/mxgraph"
 	"github.com/okamumu/gospn/pkg/matout"
 	"github.com/okamumu/gospn/pkg/mt"
+	"github.com/okamumu/gospn/pkg/mxgraph"
 	"github.com/okamumu/gospn/pkg/parser"
 	"github.com/okamumu/gospn/pkg/petrinet"
 	"io"
@@ -418,4 +418,3 @@ func cmdgen(args []string) {
 		writer.Flush()
 	}
 }
-
