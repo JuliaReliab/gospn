@@ -1,3 +1,12 @@
+# gospn 0.13.1
+
+- commit `go.sum`. It was deleted and added to `.gitignore` in 0.11.0, when the antlr
+  dependency was moved back to the 2018 revision, so since then nothing in the repository
+  recorded which module contents the released binaries were built against and every build
+  re-derived them. Committing it also lets `actions/setup-go` cache the module downloads,
+  which it could not do before -- the release workflow logged "Dependencies file is not
+  found ... Supported file pattern: go.sum" on every run
+
 # gospn 0.13.0
 
 - performance: the marking graph is built with fewer allocations. On the largest bundled

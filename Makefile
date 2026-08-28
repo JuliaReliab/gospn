@@ -1,4 +1,4 @@
-GOSPN_VERSION = 0.13.0
+GOSPN_VERSION = 0.13.1
 
 deps:
 	go get github.com/antlr/antlr4/runtime/Go/antlr@4.7.2
