@@ -1,0 +1,168 @@
+# Build the release binaries and publish them when a version tag is pushed.
+#
+#   git tag v0.12.0 && git push origin v0.12.0
+#
+# The tag is the single source of truth for the version: the archive names, the release
+# title and the CHANGELOG section are all derived from it. A tag whose version does not
+# match GOSPN_VERSION in the Makefile fails the run, so the two cannot drift apart.
+#
+# Re-running for a tag that already exists is possible from the Actions tab
+# (Run workflow -> tag), which replaces the assets on the existing release.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build, e.g. v0.12.0'
+        required: true
+
+permissions:
+  contents: write # needed to create the release and upload the assets
+
+env:
+  GO_VERSION: '1.22' # matches the Dockerfile
+  # go.sum is not committed (see .gitignore), so the build has to be allowed to
+  # write it, exactly as the Dockerfile does.
+  GOFLAGS: -mod=mod
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          tag='${{ github.event.inputs.tag || github.ref_name }}'
+          case "$tag" in
+            v*) ;;
+            *) echo "::error::the tag must start with 'v' (got '$tag')"; exit 1 ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Check the tag against GOSPN_VERSION in the Makefile
+        run: |
+          version='${{ needs.prepare.outputs.version }}'
+          makefile=$(sed -n 's/^GOSPN_VERSION[[:space:]]*[?:]\{0,1\}=[[:space:]]*//p' Makefile | head -1)
+          if [ "$makefile" != "$version" ]; then
+            echo "::error::tag says $version but the Makefile says '$makefile'; update GOSPN_VERSION and re-tag"
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go test ./...
+
+  build:
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64, archive: tar.gz }
+          - { goos: linux, goarch: arm64, archive: tar.gz }
+          - { goos: darwin, goarch: amd64, archive: tar.gz }
+          - { goos: darwin, goarch: arm64, archive: tar.gz }
+          - { goos: windows, goarch: amd64, archive: zip }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build and package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -eu
+          version='${{ needs.prepare.outputs.version }}'
+          name="gospn-${version}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          bin=gospn
+          if [ "$GOOS" = windows ]; then bin=gospn.exe; fi
+          mkdir -p dist/stage dist/out
+          # -trimpath keeps build machine paths out of the binary; -s -w drops the
+          # symbol table and DWARF, which roughly halves the size.
+          go build -trimpath -ldflags '-s -w' -o "dist/stage/$bin" ./cmd/gospn.go
+          cd dist/stage
+          if [ '${{ matrix.archive }}' = zip ]; then
+            zip -q "../out/${name}.zip" "$bin"
+          else
+            tar -czf "../out/${name}.tar.gz" "$bin"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gospn-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/out/*
+          if-no-files-found: error
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Collect the notes for this version from CHANGELOG.md
+        id: notes
+        run: |
+          set -eu
+          version='${{ needs.prepare.outputs.version }}'
+          awk -v want="# gospn $version" '
+            $0 == want { found = 1; next }
+            found && /^# gospn / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          # Drop leading/trailing blank lines
+          sed -i -e '/./,$!d' notes.md
+          if [ -s notes.md ]; then
+            echo "have=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::no '# gospn $version' section in CHANGELOG.md; falling back to generated notes"
+            echo "have=no" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum gospn-* > SHA256SUMS
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          tag='${{ needs.prepare.outputs.tag }}'
+          version='${{ needs.prepare.outputs.version }}'
+          if [ '${{ steps.notes.outputs.have }}' = yes ]; then
+            notes=(--notes-file notes.md)
+          else
+            notes=(--generate-notes)
+          fi
+          if gh release view "$tag" --repo '${{ github.repository }}' >/dev/null 2>&1; then
+            # Re-run for a tag that is already released: replace the assets, keep the notes.
+            gh release upload "$tag" dist/* --repo '${{ github.repository }}' --clobber
+          else
+            gh release create "$tag" dist/* \
+              --repo '${{ github.repository }}' \
+              --title "gospn $version" \
+              "${notes[@]}"
+          fi
