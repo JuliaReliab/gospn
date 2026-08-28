@@ -11,8 +11,5 @@ RUN apt-get update \
  && printf '#!/bin/sh\nexec java -jar /usr/local/lib/antlr.jar "$@"\n' > /usr/local/bin/antlr4 \
  && chmod +x /usr/local/bin/antlr4
 
-# go.mod targets go 1.16; allow the toolchain to update it as needed
-ENV GOFLAGS=-mod=mod
-
 WORKDIR /src
 CMD ["make", "test"]

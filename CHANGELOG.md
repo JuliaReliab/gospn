@@ -1,3 +1,20 @@
+# gospn 0.13.1
+
+- commit `go.sum`. It was deleted and added to `.gitignore` in 0.11.0, when the antlr
+  dependency was moved back to the 2018 revision, so since then nothing in the repository
+  recorded which module contents the released binaries were built against and every build
+  re-derived them. Committing it also lets `actions/setup-go` cache the module downloads,
+  which it could not do before -- the release workflow logged "Dependencies file is not
+  found ... Supported file pattern: go.sum" on every run
+- drop `GOFLAGS=-mod=mod` from both workflows and the Dockerfile. It was there to let the
+  build write the missing `go.sum`; leaving it would let a build silently rewrite the
+  committed one, which is most of what committing it is for. The default `-mod=readonly`
+  builds and tests every package without touching `go.mod` or `go.sum`
+- the release workflow refuses a tag that is not on `master`. A tag is not tied to a
+  branch and the workflow fires as soon as one is pushed, so tagging a feature branch
+  published a release before the branch was merged -- and a squash or rebase merge then
+  rewrote that commit, leaving the binaries corresponding to nothing in the history
+
 # gospn 0.13.0
 
 - performance: the marking graph is built with fewer allocations. On the largest bundled
