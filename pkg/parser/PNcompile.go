@@ -52,68 +52,64 @@ func getString(expr ASTExpr, env ASTEnv, str string) (string, error) {
 // Create a closure for guard function
 func createGuardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) bool {
 	return func(mark []petrinet.MarkInt) bool {
-		if result, err := expr.EvalWithMark(net, mark, env); err == nil {
-			if val, err := result.GetBool(); err == nil {
-				return bool(val)
-			} else {
-				logger.Panic(err)
-			}
-		} else {
+		result, err := expr.EvalWithMark(net, mark, env)
+		if err != nil {
 			logger.Panic(err)
+			return false
 		}
-		return false
+		val, ok := result.boolean()
+		if !ok {
+			logger.Panic(fmt.Errorf("guard is not bool %T", result.val))
+		}
+		return val
 	}
 }
 
 // Create a closure for weight and rate functions
 func createRateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
 	return func(mark []petrinet.MarkInt) float64 {
-		if result, err := expr.EvalWithMark(net, mark, env); err == nil {
-			if val, err := result.GetInt(); err == nil {
-				return float64(val)
-			} else if val, err := result.GetFloat(); err == nil {
-				return float64(val)
-			} else {
-				logger.Panic(err)
-			}
-		} else {
+		result, err := expr.EvalWithMark(net, mark, env)
+		if err != nil {
 			logger.Panic(err)
+			return 0.0
 		}
-		return 0.0
+		val, ok := result.numeric()
+		if !ok {
+			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 %T", result.val))
+		}
+		return val
 	}
 }
 
 // Create a closure for multi function
 func createMultiFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) petrinet.MarkInt {
 	return func(mark []petrinet.MarkInt) petrinet.MarkInt {
-		if astval, err := expr.EvalWithMark(net, mark, env); err == nil {
-			if val, err := astval.GetInt(); err == nil {
-				return petrinet.MarkInt(val)
-			} else {
-				logger.Panic(err)
-			}
-		} else {
+		astval, err := expr.EvalWithMark(net, mark, env)
+		if err != nil {
 			logger.Panic(err)
+			return 0
 		}
-		return 0
+		val, ok := astval.integer()
+		if !ok {
+			logger.Panic(fmt.Errorf("multiplicity is not int32 %T", astval.val))
+		}
+		return petrinet.MarkInt(val)
 	}
 }
 
 // Create a closure for reward function
 func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
 	return func(mark []petrinet.MarkInt) float64 {
-		if result, err := expr.EvalWithMark(net, mark, env); err == nil {
-			if val, err := result.GetInt(); err == nil {
-				return float64(val)
-			} else if val, err := result.GetFloat(); err == nil {
-				return float64(val)
-			} else {
-				logger.Panic(err)
-			}
-		} else {
+		result, err := expr.EvalWithMark(net, mark, env)
+		if err != nil {
 			logger.Panic(err)
+			return 0.0
 		}
-		return 0.0
+		val, ok := result.numeric()
+		if !ok {
+			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 %T", result.val))
+		}
+		return val
 	}
 }
 

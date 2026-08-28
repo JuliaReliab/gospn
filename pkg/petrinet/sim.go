@@ -9,7 +9,7 @@ import (
 )
 
 func (tr *ImmTrans) getWeight(net *Net, m []MarkInt) float64 {
-	if wfunc, ok := net.ratefunc[tr.Trans]; ok {
+	if wfunc := tr.ratefunc; wfunc != nil {
 		return wfunc(m)
 	}
 	return tr.weight
@@ -22,7 +22,7 @@ type simTransInterface interface {
 }
 
 func (tr *ExpTrans) nextTime(net *Net, m []MarkInt, rng RandomNumberGenerator) float64 {
-	if rfunc, ok := net.ratefunc[tr.Trans]; ok {
+	if rfunc := tr.ratefunc; rfunc != nil {
 		return -1 / rfunc(m) * math.Log(rng.Float64())
 	}
 	return -1 / tr.rate * math.Log(rng.Float64())

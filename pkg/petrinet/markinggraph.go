@@ -16,7 +16,7 @@ type linkTransInterface interface {
 }
 
 func (tr *ImmTrans) getValue(net *Net, mark *Mark) float64 {
-	if f, ok := net.ratefunc[tr.getTrans()]; ok {
+	if f := tr.getTrans().ratefunc; f != nil {
 		return f(mark.toSlice())
 	} else {
 		return tr.weight
@@ -24,7 +24,7 @@ func (tr *ImmTrans) getValue(net *Net, mark *Mark) float64 {
 }
 
 func (tr *ExpTrans) getValue(net *Net, mark *Mark) float64 {
-	if f, ok := net.ratefunc[tr.getTrans()]; ok {
+	if f := tr.getTrans().ratefunc; f != nil {
 		return f(mark.toSlice())
 	} else {
 		return tr.rate

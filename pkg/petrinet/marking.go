@@ -1,6 +1,7 @@
 package petrinet
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 )
@@ -37,6 +38,14 @@ type MarkGeneratorInterface interface {
 	genMark([]MarkInt) *Mark
 }
 
+// MarkGenerator interns markings: the same token vector always yields the same *Mark, so
+// the rest of the search can compare and key markings by pointer.
+//
+// The key is the raw little-endian bytes of the vector rather than its decimal rendering.
+// Formatting each count cost a strconv call per place per edge, and the lookup is written
+// as the literal g.data[string(g.key)] form because that is the only shape the compiler
+// recognises well enough to skip allocating the string; binding it to a variable first
+// made every lookup -- hit or miss -- allocate.
 type MarkGenerator struct {
 	key  []byte
 	data map[string]*Mark
@@ -44,23 +53,29 @@ type MarkGenerator struct {
 
 func NewMarkGenerator(n int) *MarkGenerator {
 	return &MarkGenerator{
-		key:  make([]byte, 0, 5*n), // estimate 5 characters for one place
+		key:  make([]byte, markKeyWidth*n),
 		data: make(map[string]*Mark),
 	}
 }
 
+// The number of bytes one place's token count occupies in a lookup key.
+const markKeyWidth = 8
+
 func (g *MarkGenerator) genMark(m []MarkInt) *Mark {
-	g.key = g.key[:0]
-	for _, x := range m {
-		g.key = append(g.key, strconv.Itoa(int(x))...)
-		g.key = append(g.key, ',')
+	if n := markKeyWidth * len(m); len(g.key) != n {
+		g.key = make([]byte, n)
 	}
-	key := string(g.key)
-	if mark, ok := g.data[key]; ok {
+	for i, x := range m {
+		binary.LittleEndian.PutUint64(g.key[markKeyWidth*i:], uint64(x))
+	}
+	if mark, ok := g.data[string(g.key)]; ok {
 		return mark
-	} else {
-		newmark := newMark(m)
-		g.data[key] = newmark
-		return newmark
 	}
+	// Only on a miss is the marking retained, and it is copied first: callers reuse the
+	// slice they passed in for the next firing.
+	own := make([]MarkInt, len(m))
+	copy(own, m)
+	newmark := newMark(own)
+	g.data[string(g.key)] = newmark
+	return newmark
 }

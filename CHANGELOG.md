@@ -1,3 +1,26 @@
+# gospn 0.13.0
+
+- performance: the marking graph is built with fewer allocations. On the largest bundled
+  example (`spnp_example6.spn`) allocations drop about 25% and construction about 8%
+- `clampRecorder.record` no longer allocated on every firing. It is called once per firing
+  and reached `errors.As`, which boxes its target into an `interface{}`; the common case
+  where nothing was clamped now returns before that
+- the compiled guard/rate/multiplicity closures no longer build an error on their normal
+  path. `createRateFunc` asked `GetInt` first and fell through to `GetFloat` for every
+  float-valued rate, and the discarded mismatch was reported with `fmt.Errorf`, so a rate
+  expression allocated a formatted string per edge
+- markings are interned on their raw bytes instead of a decimal rendering, and the map
+  lookup is written in the form the compiler can keep allocation-free
+- the destination of a firing is written into a buffer the search reuses, rather than a
+  fresh slice per firing; `MarkGenerator` copies it only when the marking is new
+- guard/rate/update/multiplicity closures live on `Trans`, `InArc` and `OutArc` instead of
+  in maps keyed by their pointer, removing a map lookup per arc per enabling check
+- the benchmarks in `test/` never actually ran: the `b.N` loop was commented out in all
+  eight, and `BenchmarkGoSPNP5` read `".../example/..."` so it silently measured nothing.
+  They are now one table-driven `BenchmarkGoSPN` that fails on a read error
+- add `TestMarkingGraphGolden`, which pins the state labels and transition matrices of
+  every bundled example, so changes of this kind can be shown not to alter the output
+
 # gospn 0.12.0
 
 - report the places that a firing had to clamp, instead of discarding the error. A clamped

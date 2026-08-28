@@ -72,6 +72,7 @@ type dfs struct {
 	markToGroupType map[*Mark]GroupType // map from Mark to Gtype
 	links           []Link              // links
 	clamps          clampRecorder       // places clamped while firing (see clamp.go)
+	firebuf         []MarkInt           // scratch destination reused by createNextMarking
 }
 
 // The method to create a marking graph.
@@ -86,6 +87,7 @@ func (d *dfs) create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Mark]*GenV
 	d.markToGroupType = make(map[*Mark]GroupType)
 	d.links = make([]Link, 0)
 
+	d.firebuf = make([]MarkInt, len(net.placelist))
 	m0 := d.markGenerator.genMark(imark)
 	d.novisited.push(m0)
 	d.createMarking(net)
@@ -167,7 +169,8 @@ func (d *dfs) createGenVec(net *Net, mark *Mark) *GenVec {
 // The method to create a unique mark by firing of tr trans
 // If the number of tokens is less than zero or greater than max, err is not nil
 func (d *dfs) createNextMarking(net *Net, mark *Mark, tr firingInterface) (*Mark, error) {
-	dest, err := tr.DoFiring(net, mark.toSlice())
+	// One buffer is reused for every firing; genMark copies it when the marking is new.
+	dest, err := tr.doFiringInto(net, mark.toSlice(), d.firebuf)
 	// A clamped destination is not the transition's real one. Record it so the caller
 	// can be told the marking graph is not exact; see (*MarkingGraph).ClampEvents.
 	d.clamps.record(err)

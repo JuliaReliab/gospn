@@ -57,13 +57,20 @@ func (t TransType) String() string {
 	}
 }
 
+// The compiled expressions live on the node they belong to rather than in a map keyed by
+// its pointer: IsEnabled and DoFiring consult them for every transition at every marking,
+// and a map lookup there costs more than the expression itself. A nil field means the
+// expression was never set, which is what the map's comma-ok used to say.
 type Trans struct {
-	label      string    // the label of node
-	index      int       // the index of index
-	priority   int       // the priority of transition
-	vanishable bool      // the transition can be vanished or not
-	inarcs     []*InArc  // the list of inarcs
-	outarcs    []*OutArc // the list of outarcs
+	label      string                    // the label of node
+	index      int                       // the index of index
+	priority   int                       // the priority of transition
+	vanishable bool                      // the transition can be vanished or not
+	inarcs     []*InArc                  // the list of inarcs
+	outarcs    []*OutArc                 // the list of outarcs
+	guard      func([]MarkInt) bool      // guard function, nil if none
+	update     func([]MarkInt) []MarkInt // update function, nil if none
+	ratefunc   func([]MarkInt) float64   // weight and rate function, nil if none
 }
 
 type ImmTrans struct {
@@ -188,16 +195,18 @@ func newGenTrans(label string, index int, priority int, vanishable bool, dist Di
 }
 
 type InArc struct {
-	src          *Place  // source node
-	dest         *Trans  // destination node
-	multiplicity MarkInt // multiplicity
-	inhibit      bool    // the arc is inhibit or not
+	src          *Place                  // source node
+	dest         *Trans                  // destination node
+	multiplicity MarkInt                 // multiplicity
+	inhibit      bool                    // the arc is inhibit or not
+	multifunc    func([]MarkInt) MarkInt // marking-dependent multiplicity, nil if constant
 }
 
 type OutArc struct {
-	src          *Trans  // source node
-	dest         *Place  // destination node
-	multiplicity MarkInt // multiplicity
+	src          *Trans                  // source node
+	dest         *Place                  // destination node
+	multiplicity MarkInt                 // multiplicity
+	multifunc    func([]MarkInt) MarkInt // marking-dependent multiplicity, nil if constant
 }
 
 type placeInterface interface {
@@ -249,24 +258,19 @@ func newOutArc(src transInterface, dest placeInterface, multiplicity MarkInt) *O
 
 // The structure for a petrinet.
 type Net struct {
-	placelist       []*Place                             // the list of places
-	translist       []*Trans                             // the list of transitions
-	immlist         []*ImmTrans                          // the list of imm transitions
-	explist         []*ExpTrans                          // the list of exp transitons
-	genlist         []*GenTrans                          // the list of gen transitions
-	guards          map[*Trans]func([]MarkInt) bool      // guard functions
-	updates         map[*Trans]func([]MarkInt) []MarkInt // update functions
-	infunc          map[*InArc]func([]MarkInt) MarkInt   // multiplicity functions
-	outfunc         map[*OutArc]func([]MarkInt) MarkInt  // multiplicity functions
-	ratefunc        map[*Trans]func([]MarkInt) float64   // weight and rate functions
-	rewardfunc      map[string]func([]MarkInt) float64   // reward functions
-	placelabel      map[string]*Place                    // labels for places
-	translabel      map[string]*Trans                    // labels for trans
-	guardstring     map[*Trans]string                    // string for guard functions
-	updatesstring   map[*Trans]string                    // string for guard functions
-	infuncstring    map[*InArc]string                    // multiplicity functions
-	outfuncstring   map[*OutArc]string                   // multiplicity functions
-	markgroupstring []func([]MarkInt) string             // function to generate string for groups
+	placelist       []*Place                           // the list of places
+	translist       []*Trans                           // the list of transitions
+	immlist         []*ImmTrans                        // the list of imm transitions
+	explist         []*ExpTrans                        // the list of exp transitons
+	genlist         []*GenTrans                        // the list of gen transitions
+	rewardfunc      map[string]func([]MarkInt) float64 // reward functions
+	placelabel      map[string]*Place                  // labels for places
+	translabel      map[string]*Trans                  // labels for trans
+	guardstring     map[*Trans]string                  // string for guard functions
+	updatesstring   map[*Trans]string                  // string for guard functions
+	infuncstring    map[*InArc]string                  // multiplicity functions
+	outfuncstring   map[*OutArc]string                 // multiplicity functions
+	markgroupstring []func([]MarkInt) string           // function to generate string for groups
 }
 
 func NewNet() *Net {
@@ -276,11 +280,6 @@ func NewNet() *Net {
 		immlist:         make([]*ImmTrans, 0),
 		explist:         make([]*ExpTrans, 0),
 		genlist:         make([]*GenTrans, 0),
-		guards:          make(map[*Trans]func([]MarkInt) bool),
-		updates:         make(map[*Trans]func([]MarkInt) []MarkInt),
-		infunc:          make(map[*InArc]func([]MarkInt) MarkInt),
-		outfunc:         make(map[*OutArc]func([]MarkInt) MarkInt),
-		ratefunc:        make(map[*Trans]func([]MarkInt) float64),
 		rewardfunc:      make(map[string]func([]MarkInt) float64),
 		placelabel:      make(map[string]*Place),
 		translabel:      make(map[string]*Trans),
@@ -347,26 +346,26 @@ func (net *Net) GetTrans(label string) (*Trans, bool) {
 
 func (net *Net) SetGuard(tr transInterface, str string, guard func([]MarkInt) bool) {
 	net.guardstring[tr.getTrans()] = str
-	net.guards[tr.getTrans()] = guard
+	tr.getTrans().guard = guard
 }
 
 func (net *Net) SetUpdate(tr transInterface, str string, update func([]MarkInt) []MarkInt) {
 	net.updatesstring[tr.getTrans()] = str
-	net.updates[tr.getTrans()] = update
+	tr.getTrans().update = update
 }
 
 func (net *Net) SetWeightRate(tr transInterface, rate func([]MarkInt) float64) {
-	net.ratefunc[tr.getTrans()] = rate
+	tr.getTrans().ratefunc = rate
 }
 
 func (net *Net) SetInArcMulti(arc *InArc, str string, multi func([]MarkInt) MarkInt) {
 	net.infuncstring[arc] = str
-	net.infunc[arc] = multi
+	arc.multifunc = multi
 }
 
 func (net *Net) SetOutArcMulti(arc *OutArc, str string, multi func([]MarkInt) MarkInt) {
 	net.outfuncstring[arc] = str
-	net.outfunc[arc] = multi
+	arc.multifunc = multi
 }
 
 func (net *Net) SetReward(str string, rwd func([]MarkInt) float64) {
