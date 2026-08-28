@@ -2,6 +2,8 @@ package petrinet
 
 import (
 	"fmt"
+	"os"
+	"sync"
 )
 
 type TransStatus int
@@ -107,6 +109,36 @@ func (tr *GenTrans) IsEnabled(net *Net, mark []MarkInt) TransStatus {
 	}
 }
 
+// Firing errors (a token count below zero, or above the place capacity) are returned
+// by DoFiring, but every caller in the marking-graph search discards them. The marking
+// is then silently clamped, which drops the transition's real destination and leaves a
+// generator matrix whose rows do not sum to zero -- with no indication that anything
+// went wrong. Warn on stderr instead, once per (transition, place, kind).
+//
+// This bites easily because the default place capacity is 255 (see PNcompile.go), so a
+// place that legitimately holds more tokens but has no explicit `max` is truncated.
+var (
+	firingWarnMu   sync.Mutex
+	firingWarnSeen = map[string]bool{}
+)
+
+func warnFiring(kind, trans, place string, limit MarkInt) {
+	if os.Getenv("GOSPN_NO_WARN") != "" {
+		return
+	}
+	key := kind + "\x00" + trans + "\x00" + place
+	firingWarnMu.Lock()
+	defer firingWarnMu.Unlock()
+	if firingWarnSeen[key] {
+		return
+	}
+	firingWarnSeen[key] = true
+	fmt.Fprintf(os.Stderr,
+		"gospn: warning: transition %s clamped place %s at %s %d; "+
+			"the marking graph is no longer exact (set an explicit `max` on the place)\n",
+		trans, place, kind, limit)
+}
+
 func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
 	var err error
 	mark := make([]MarkInt, len(m))
@@ -121,6 +153,7 @@ func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
 			if mark[place.index] < 0 {
 				mark[place.index] = 0
 				err = fmt.Errorf("The number of tokens is less than zero: tr %s, place %s", tr.label, place.label)
+				warnFiring("min", tr.label, place.label, 0)
 			}
 		}
 	}
@@ -131,6 +164,7 @@ func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
 		if mark[place.index] > place.max {
 			mark[place.index] = place.max
 			err = fmt.Errorf("The number of tokens is greater than max: tr %s, place %s", tr.label, place.label)
+			warnFiring("max", tr.label, place.label, place.max)
 		}
 	}
 	update, ok := net.updates[tr]
