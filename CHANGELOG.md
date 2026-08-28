@@ -1,3 +1,16 @@
+# gospn 0.12.0
+
+- report the places that a firing had to clamp, instead of discarding the error. A clamped
+  marking is not the transition's real destination, so the marking graph -- and any
+  generator matrix taken from it -- is not exact, and nothing used to say so. Easy to hit
+  because the default place capacity is 255.
+- `DoFiring` returns a typed `*ClampError` naming every place that firing clamped, instead
+  of a string error that kept only the last one
+- add `(*MarkingGraph).ClampEvents`, `(*PNSimulation).ClampEvents` and `FormatClampEvents`;
+  `gospn mark` and `gospn sim` print the report on stderr
+- publish releases from a GitHub Actions workflow when a version tag is pushed
+- add a linux/arm64 binary and a SHA256SUMS file to the release assets
+
 # gospn 0.11.1
 
 - bugfix: integer subtraction (e.g. `reward r #P1 - #P2`) was evaluated as addition
