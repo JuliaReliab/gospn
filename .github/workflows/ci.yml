@@ -17,9 +17,6 @@ concurrency:
 
 env:
   GO_VERSION: '1.22' # matches the Dockerfile
-  # go.sum is not committed (see .gitignore), so the build has to be allowed to write
-  # it, exactly as the Dockerfile does.
-  GOFLAGS: -mod=mod
 
 jobs:
   test:

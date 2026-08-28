@@ -6,6 +6,10 @@
   re-derived them. Committing it also lets `actions/setup-go` cache the module downloads,
   which it could not do before -- the release workflow logged "Dependencies file is not
   found ... Supported file pattern: go.sum" on every run
+- drop `GOFLAGS=-mod=mod` from both workflows and the Dockerfile. It was there to let the
+  build write the missing `go.sum`; leaving it would let a build silently rewrite the
+  committed one, which is most of what committing it is for. The default `-mod=readonly`
+  builds and tests every package without touching `go.mod` or `go.sum`
 
 # gospn 0.13.0
 
