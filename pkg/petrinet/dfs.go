@@ -71,6 +71,7 @@ type dfs struct {
 	markToGenvec    map[*Mark]*GenVec   // map from Mark to GenVec
 	markToGroupType map[*Mark]GroupType // map from Mark to Gtype
 	links           []Link              // links
+	clamps          clampRecorder       // places clamped while firing (see clamp.go)
 }
 
 // The method to create a marking graph.
@@ -90,6 +91,12 @@ func (d *dfs) create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Mark]*GenV
 	d.createMarking(net)
 
 	return m0, d.marks, d.markToGenvec, d.markToGroupType, d.links
+}
+
+// The method to report the places that were clamped while firing.
+// This is an interface for markinggraphGenerator.
+func (d *dfs) clampEvents() []ClampSummary {
+	return d.clamps.events()
 }
 
 // The method to regist a mark as a member of IMMgroup (There is one or more enabled IMM trans)
@@ -161,6 +168,9 @@ func (d *dfs) createGenVec(net *Net, mark *Mark) *GenVec {
 // If the number of tokens is less than zero or greater than max, err is not nil
 func (d *dfs) createNextMarking(net *Net, mark *Mark, tr firingInterface) (*Mark, error) {
 	dest, err := tr.DoFiring(net, mark.toSlice())
+	// A clamped destination is not the transition's real one. Record it so the caller
+	// can be told the marking graph is not exact; see (*MarkingGraph).ClampEvents.
+	d.clamps.record(err)
 	return d.markGenerator.genMark(dest), err
 }
 

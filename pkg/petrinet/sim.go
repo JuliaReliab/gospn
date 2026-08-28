@@ -47,7 +47,8 @@ func ReadConfigFromJson(b []byte) (PNSimConfig, error) {
 
 type PNSimulation struct {
 	PNSimConfig
-	net *Net
+	net    *Net
+	clamps clampRecorder // places clamped while firing (see clamp.go)
 }
 
 func NewPNSimulation(net *Net, config PNSimConfig) *PNSimulation {
@@ -162,7 +163,9 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 			for i, w := range weights {
 				s += w
 				if s > u {
-					m, _ = net.immlist[i].DoFiring(net, m)
+					var err error
+					m, err = net.immlist[i].DoFiring(net, m)
+					sim.clamps.record(err)
 					count++
 					events = append(events, event{
 						time: elapsedtime,
@@ -218,7 +221,9 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 				break
 			}
 
-			m, _ = firingtr.DoFiring(net, m)
+			var err error
+			m, err = firingtr.DoFiring(net, m)
+			sim.clamps.record(err)
 			count++
 			events = append(events, event{
 				time: elapsedtime,
@@ -231,6 +236,14 @@ func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator
 		}
 	}
 	return events, elapsedtime, count
+}
+
+// ClampEvents reports the places that had to be clamped while firing over every run
+// made with this PNSimulation, collapsed per (transition, place, bound). A non-empty
+// result means some sample paths did not follow the transitions' real destinations.
+// See (*MarkingGraph).ClampEvents for the usual cause.
+func (sim *PNSimulation) ClampEvents() []ClampSummary {
+	return sim.clamps.events()
 }
 
 func (sim *PNSimulation) calcReward(events []event, rfunc func([]MarkInt) float64) (float64, float64, float64) {
