@@ -22,31 +22,27 @@ func (t TransStatus) String() string {
 }
 
 func (arc *InArc) getMulti(net *Net, mark []MarkInt) MarkInt {
-	multifunc, ok := net.infunc[arc]
-	if ok {
-		return multifunc(mark)
-	} else {
-		return arc.multiplicity
+	if arc.multifunc != nil {
+		return arc.multifunc(mark)
 	}
+	return arc.multiplicity
 }
 
 func (arc *OutArc) getMulti(net *Net, mark []MarkInt) MarkInt {
-	multifunc, ok := net.outfunc[arc]
-	if ok {
-		return multifunc(mark)
-	} else {
-		return arc.multiplicity
+	if arc.multifunc != nil {
+		return arc.multifunc(mark)
 	}
+	return arc.multiplicity
 }
 
 type firingInterface interface {
 	IsEnabled(net *Net, mark []MarkInt) TransStatus
 	DoFiring(net *Net, mark []MarkInt) ([]MarkInt, error)
+	doFiringInto(net *Net, mark []MarkInt, dst []MarkInt) ([]MarkInt, error)
 }
 
 func (tr *Trans) IsEnabled(net *Net, mark []MarkInt) TransStatus {
-	guard, ok := net.guards[tr]
-	if ok && guard(mark) == false {
+	if tr.guard != nil && tr.guard(mark) == false {
 		return DISABLE
 	}
 	for _, arc := range tr.inarcs {
@@ -75,8 +71,7 @@ func (tr *ExpTrans) IsEnabled(net *Net, mark []MarkInt) TransStatus {
 
 func (tr *GenTrans) IsEnabled(net *Net, mark []MarkInt) TransStatus {
 	maybePreemption := false
-	guard, ok := net.guards[tr.Trans]
-	if ok && guard(mark) == false {
+	if tr.guard != nil && tr.guard(mark) == false {
 		maybePreemption = true
 	}
 	for _, arc := range tr.inarcs {
@@ -110,11 +105,25 @@ func (tr *GenTrans) IsEnabled(net *Net, mark []MarkInt) TransStatus {
 // clamped marking is not the transition's real destination, so anything derived from it
 // (a generator matrix, a sample path) is no longer exact.
 func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
+	return tr.doFiringInto(net, m, nil)
+}
+
+// doFiringInto is DoFiring with the destination written into dst when it is long enough,
+// instead of into a freshly allocated slice. The search reuses one buffer across every
+// firing: the result is handed straight to MarkGenerator.genMark, which copies it if the
+// marking turns out to be new and otherwise discards it. Passing nil allocates, which is
+// what the exported DoFiring does.
+//
+// The returned slice is not necessarily dst: an update expression produces its own.
+func (tr *Trans) doFiringInto(net *Net, m []MarkInt, dst []MarkInt) ([]MarkInt, error) {
 	var clamped *ClampError
-	mark := make([]MarkInt, len(m))
-	for i, x := range m {
-		mark[i] = x
+	var mark []MarkInt
+	if len(dst) == len(m) {
+		mark = dst
+	} else {
+		mark = make([]MarkInt, len(m))
 	}
+	copy(mark, m)
 	for _, arc := range tr.inarcs {
 		if arc.inhibit == false {
 			multi := arc.getMulti(net, m)
@@ -147,22 +156,32 @@ func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
 	if clamped != nil {
 		err = clamped
 	}
-	update, ok := net.updates[tr]
-	if ok {
-		return update(mark), err
-	} else {
-		return mark, err
+	if tr.update != nil {
+		return tr.update(mark), err
 	}
+	return mark, err
 }
 
 func (tr *ImmTrans) DoFiring(net *Net, mark []MarkInt) ([]MarkInt, error) {
 	return tr.Trans.DoFiring(net, mark)
 }
 
+func (tr *ImmTrans) doFiringInto(net *Net, mark []MarkInt, dst []MarkInt) ([]MarkInt, error) {
+	return tr.Trans.doFiringInto(net, mark, dst)
+}
+
 func (tr *ExpTrans) DoFiring(net *Net, mark []MarkInt) ([]MarkInt, error) {
 	return tr.Trans.DoFiring(net, mark)
 }
 
+func (tr *ExpTrans) doFiringInto(net *Net, mark []MarkInt, dst []MarkInt) ([]MarkInt, error) {
+	return tr.Trans.doFiringInto(net, mark, dst)
+}
+
 func (tr *GenTrans) DoFiring(net *Net, mark []MarkInt) ([]MarkInt, error) {
 	return tr.Trans.DoFiring(net, mark)
+}
+
+func (tr *GenTrans) doFiringInto(net *Net, mark []MarkInt, dst []MarkInt) ([]MarkInt, error) {
+	return tr.Trans.doFiringInto(net, mark, dst)
 }

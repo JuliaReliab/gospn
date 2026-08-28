@@ -88,10 +88,21 @@ type clampRecorder struct {
 
 // record takes the error returned by DoFiring. Anything that is not a *ClampError,
 // including nil, is ignored.
+//
+// record is called once per firing, so the path where nothing was clamped -- by far the
+// common one -- must not allocate. Both the nil check and the type assertion are here to
+// keep it from reaching errors.As, which boxes its target into an interface{} and so
+// allocated on every firing. errors.As is still the fallback, so a wrapped *ClampError
+// is still recognised.
 func (r *clampRecorder) record(err error) {
-	var ce *ClampError
-	if !errors.As(err, &ce) {
+	if err == nil {
 		return
+	}
+	ce, ok := err.(*ClampError)
+	if !ok {
+		if !errors.As(err, &ce) {
+			return
+		}
 	}
 	for _, ev := range ce.Events {
 		if i, ok := r.index[ev]; ok {

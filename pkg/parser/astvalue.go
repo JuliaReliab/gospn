@@ -691,6 +691,36 @@ func MakeValue(val interface{}) *ASTValue {
 	}
 }
 
+// The comma-ok accessors below are what the compiled closures in PNcompile.go use. The
+// GetX form reports a mismatch with fmt.Errorf, which allocates a formatted string; the
+// closures reach that on their normal path -- createRateFunc asks for an int first and
+// falls through to float for every float-valued rate -- so an expression that is
+// re-evaluated per edge was building and discarding an error per edge.
+
+// numeric returns the value as a float64 if it is an ASTInt or an ASTFloat.
+func (a *ASTValue) numeric() (float64, bool) {
+	switch v := a.val.(type) {
+	case ASTInt:
+		return float64(v), true
+	case ASTFloat:
+		return float64(v), true
+	default:
+		return 0, false
+	}
+}
+
+// boolean returns the value as a bool if it is an ASTBool.
+func (a *ASTValue) boolean() (bool, bool) {
+	v, ok := a.val.(ASTBool)
+	return bool(v), ok
+}
+
+// integer returns the value as an ASTInt if it is one.
+func (a *ASTValue) integer() (ASTInt, bool) {
+	v, ok := a.val.(ASTInt)
+	return v, ok
+}
+
 // The function to get value
 func (a *ASTValue) GetBool() (ASTBool, error) {
 	switch v := a.val.(type) {
