@@ -4,7 +4,8 @@
 #
 # The tag is the single source of truth for the version: the archive names, the release
 # title and the CHANGELOG section are all derived from it. A tag whose version does not
-# match GOSPN_VERSION in the Makefile fails the run, so the two cannot drift apart.
+# match GOSPN_VERSION in the Makefile fails the run, so the two cannot drift apart, and a
+# tag that does not sit on the default branch fails too -- see the prepare job.
 #
 # Re-running for a tag that already exists is possible from the Actions tab
 # (Run workflow -> tag), which replaces the assets on the existing release.
@@ -43,6 +44,30 @@ jobs:
           esac
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      # A tag is not tied to a branch, and this workflow fires the moment one is pushed.
+      # Tagging a commit that only exists on a feature branch therefore publishes a
+      # release straight away, before the branch is reviewed and merged -- and if the pull
+      # request is then merged with squash or rebase, GitHub writes a new commit and the
+      # tagged one never joins the default branch at all, leaving the published binaries
+      # corresponding to nothing in its history. Releases are cut from the default branch,
+      # so say so here instead of finding out afterwards.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.v.outputs.tag }}
+          fetch-depth: 0
+      - name: Check the tag is on the default branch
+        run: |
+          branch='${{ github.event.repository.default_branch }}'
+          git fetch --no-tags --quiet origin "refs/heads/$branch:refs/remotes/origin/$branch"
+          tagged=$(git rev-parse HEAD)
+          if git merge-base --is-ancestor "$tagged" "origin/$branch"; then
+            echo "${{ steps.v.outputs.tag }} -> $tagged, on $branch"
+          else
+            echo "::error::${{ steps.v.outputs.tag }} points at $tagged, which is not on $branch." \
+                 "Merge the branch first, then tag the merge commit on $branch."
+            exit 1
+          fi
 
   test:
     needs: prepare

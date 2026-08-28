@@ -10,6 +10,10 @@
   build write the missing `go.sum`; leaving it would let a build silently rewrite the
   committed one, which is most of what committing it is for. The default `-mod=readonly`
   builds and tests every package without touching `go.mod` or `go.sum`
+- the release workflow refuses a tag that is not on `master`. A tag is not tied to a
+  branch and the workflow fires as soon as one is pushed, so tagging a feature branch
+  published a release before the branch was merged -- and a squash or rebase merge then
+  rewrote that commit, leaving the binaries corresponding to nothing in the history
 
 # gospn 0.13.0
 

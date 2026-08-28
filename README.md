@@ -36,17 +36,26 @@ tag is pushed:
 
 ```sh
 # 1. bump GOSPN_VERSION in the Makefile and add the section to CHANGELOG.md
-# 2. tag and push
+# 2. merge that to master
+# 3. tag the merge commit on master and push
+git checkout master && git pull
 git tag v0.12.0
 git push origin v0.12.0
 ```
+
+Tag on `master`, not on the branch. A tag is not tied to a branch and the workflow fires
+the moment one is pushed, so tagging a feature branch publishes a release before the
+branch is merged; if the pull request is then merged with squash or rebase, the tagged
+commit never joins `master` and the published binaries correspond to nothing in its
+history. The workflow refuses a tag that is not on `master` for that reason.
 
 The workflow runs the tests, cross compiles for linux/darwin (amd64 and arm64) and
 windows/amd64, and publishes a release whose title is `gospn <version>`, whose notes come
 from the matching `# gospn <version>` section of `CHANGELOG.md`, and whose assets are the
 same `gospn-<version>-<os>-<arch>.tar.gz` / `.zip` archives that `make build_all`
 produces, plus a `SHA256SUMS` file. A tag that disagrees with `GOSPN_VERSION` in the
-Makefile fails the run rather than publishing mislabelled archives.
+Makefile fails the run rather than publishing mislabelled archives, as does a tag that is
+not on `master`.
 
 To rebuild the assets for a tag that is already released, run the workflow from the
 Actions tab with that tag as the input.
