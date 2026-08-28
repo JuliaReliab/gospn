@@ -1,9 +1,5 @@
 package petrinet
 
-import (
-	"fmt"
-)
-
 type TransStatus int
 
 const (
@@ -107,8 +103,14 @@ func (tr *GenTrans) IsEnabled(net *Net, mark []MarkInt) TransStatus {
 	}
 }
 
+// DoFiring returns the marking reached by firing tr. If the destination would put a
+// place outside [0, max] the value is clamped and a *ClampError naming every place that
+// was clamped is returned alongside it. Callers that build a marking graph or run a
+// simulation should feed that error to a clampRecorder rather than discard it: the
+// clamped marking is not the transition's real destination, so anything derived from it
+// (a generator matrix, a sample path) is no longer exact.
 func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
-	var err error
+	var clamped *ClampError
 	mark := make([]MarkInt, len(m))
 	for i, x := range m {
 		mark[i] = x
@@ -120,7 +122,10 @@ func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
 			mark[place.index] -= multi
 			if mark[place.index] < 0 {
 				mark[place.index] = 0
-				err = fmt.Errorf("The number of tokens is less than zero: tr %s, place %s", tr.label, place.label)
+				if clamped == nil {
+					clamped = &ClampError{}
+				}
+				clamped.add(ClampEvent{Trans: tr.label, Place: place.label, Bound: ClampMin, Limit: 0})
 			}
 		}
 	}
@@ -130,8 +135,17 @@ func (tr *Trans) DoFiring(net *Net, m []MarkInt) ([]MarkInt, error) {
 		mark[place.index] += multi
 		if mark[place.index] > place.max {
 			mark[place.index] = place.max
-			err = fmt.Errorf("The number of tokens is greater than max: tr %s, place %s", tr.label, place.label)
+			if clamped == nil {
+				clamped = &ClampError{}
+			}
+			clamped.add(ClampEvent{Trans: tr.label, Place: place.label, Bound: ClampMax, Limit: place.max})
 		}
+	}
+	// Keep the returned error a true nil when nothing was clamped: a typed nil pointer
+	// stored in an error interface would compare non-nil at every call site.
+	var err error
+	if clamped != nil {
+		err = clamped
 	}
 	update, ok := net.updates[tr]
 	if ok {

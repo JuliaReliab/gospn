@@ -50,6 +50,14 @@ func main() {
 	}
 }
 
+// reportClamped tells the user when a firing had to be clamped. The result is not exact
+// in that case, and nothing else in the output would say so.
+func reportClamped(events []petrinet.ClampSummary) {
+	if report := petrinet.FormatClampEvents(events); report != "" {
+		fmt.Fprint(os.Stderr, "warning: "+report)
+	}
+}
+
 func cmdview(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "", "Output file (dot file)")
@@ -139,6 +147,7 @@ func cmdmark(args []string) {
 	end := time.Now()
 	fmt.Println("done")
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
+	reportClamped(mg.ClampEvents())
 	mg.Summary()
 
 	// WriteMatrix
@@ -297,6 +306,7 @@ func cmdsim(args []string) {
 	end := time.Now()
 	fmt.Println("done")
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
+	reportClamped(sim.ClampEvents())
 
 	// WriteMatrix
 	matfile := matout.CreateMATLABMatFile(true)

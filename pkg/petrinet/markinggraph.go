@@ -131,15 +131,19 @@ type MarkingGraph struct {
 	groupToMark      map[*Group][]*Mark    // map from a group to a set of marks
 	groupTransToLink map[GroupTrans][]Link // map from a group transition to a set of links
 	groupGenerator   *groupGenerator       // a generator to make an instance of group
+	clamps           []ClampSummary        // places clamped while firing (see clamp.go)
 }
 
 type makingGraphGenerator interface {
 	create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link)
+	clampEvents() []ClampSummary
 }
 
 func CreateMarkingGraph(net *Net, imark []MarkInt, method makingGraphGenerator) *MarkingGraph {
 	m0, marks, markToGenvec, markToGroupType, links := method.create(net, imark)
-	return newMarkingGraph(net, m0, marks, markToGenvec, markToGroupType, links)
+	mg := newMarkingGraph(net, m0, marks, markToGenvec, markToGroupType, links)
+	mg.clamps = method.clampEvents()
+	return mg
 }
 
 func CreateMarkingGraphWithDFS(net *Net, imark []MarkInt) *MarkingGraph {
@@ -253,6 +257,18 @@ func newMarkingGraph(net *Net,
 		groupTransToLink: groupTransToLink,
 		groupGenerator:   generator,
 	}
+}
+
+// ClampEvents reports the places that had to be clamped while the marking graph was
+// built, collapsed per (transition, place, bound). A non-empty result means at least one
+// transition's destination marking was not the real one, so the graph -- and any
+// generator matrix taken from it -- is not exact. The usual cause is a place that holds
+// more tokens than its capacity allows; the default capacity is 255, so a place that is
+// meant to hold more needs an explicit `max`.
+//
+// FormatClampEvents renders these for display.
+func (mg *MarkingGraph) ClampEvents() []ClampSummary {
+	return mg.clamps
 }
 
 func (mg *MarkingGraph) ToMarkDot(writer io.Writer) {
