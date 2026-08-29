@@ -309,7 +309,7 @@ reward r1 #Pc
 	net.ToPNDot(writer)
 	fmt.Println(writer.String())
 
-	mg := petrinet.CreateMarkingGraphWithDFS(net, imark)
+	mg, _ := petrinet.CreateMarkingGraphWithDFS(net, imark)
 	writer2 := bytes.NewBuffer(make([]byte, 0, 256))
 	mg.ToMarkDotWithLabelAndGroup(writer2)
 	fmt.Println(writer2.String())

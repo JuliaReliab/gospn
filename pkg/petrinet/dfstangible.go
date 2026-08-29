@@ -80,11 +80,12 @@ type dfstangible struct {
 	links           []Link              // links
 	clamps          clampRecorder       // places clamped while firing (see clamp.go)
 	firebuf         []MarkInt           // scratch destination reused by createNextMarking
+	counter         *stateCounter       // state limit and progress (see statelimit.go)
 }
 
 // The method to create a marking graph.
 // This is an interface for markinggraphGenerator.
-func (d *dfstangible) create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link) {
+func (d *dfstangible) create(net *Net, imark []MarkInt, opts SearchOptions) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link, error) {
 	d.markGenerator = NewMarkGenerator(len(net.placelist))
 	d.genVecGenerator = NewGenVecGenerator(len(net.genlist))
 	d.markToGenvec = make(map[*Mark]*GenVec)
@@ -100,9 +101,12 @@ func (d *dfstangible) create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Ma
 	d.links = make([]Link, 0)
 
 	d.firebuf = make([]MarkInt, len(net.placelist))
+	d.counter = newStateCounter(opts)
 	m0 := d.markGenerator.genMark(imark)
 	d.novisited.push(m0)
-	d.createMarking(net)
+	if err := d.createMarking(net); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
 
 	// post processing
 	newmarks := make([]*Mark, 0, len(d.marks))
@@ -134,7 +138,7 @@ func (d *dfstangible) create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Ma
 		m0 = em.next
 		em = d.exitMarks[m0]
 	}
-	return m0, newmarks, d.markToGenvec, d.markToGroupType, newlinks
+	return m0, newmarks, d.markToGenvec, d.markToGroupType, newlinks, nil
 }
 
 // The method to report the places that were clamped while firing.
@@ -325,8 +329,16 @@ func (d *dfstangible) vanishing(net *Net) {
 }
 
 // The method to do the depth first search
-func (d *dfstangible) createMarking(net *Net) {
+func (d *dfstangible) createMarking(net *Net) error {
+	// A search assembled by hand rather than through create() has no counter; give it
+	// the default limit rather than none, so no path silently runs unbounded.
+	if d.counter == nil {
+		d.counter = newStateCounter(DefaultSearchOptions())
+	}
 	for !d.novisited.isempty() {
+		if err := d.counter.check(d.markGenerator.size()); err != nil {
+			return err
+		}
 		mark := d.novisited.pop()
 		if d.visited.exist(mark) {
 			continue
@@ -346,4 +358,5 @@ func (d *dfstangible) createMarking(net *Net) {
 			}
 		}
 	}
+	return nil
 }

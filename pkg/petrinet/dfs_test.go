@@ -337,7 +337,7 @@ func TestCreateMarking3(t *testing.T) {
 	net.Finalize()
 
 	m0 := []MarkInt{10, 1, 1}
-	mg := CreateMarkingGraph(net, m0, new(dfs))
+	mg := mustGraph(CreateMarkingGraph(net, m0, new(dfs), DefaultSearchOptions()))
 	fmt.Println(mg)
 }
 

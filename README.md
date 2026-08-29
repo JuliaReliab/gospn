@@ -79,13 +79,20 @@ the tool displays the contens of dot file with stdout.
 ### Generate marking
 
 ```sh
-gospn mark [-i <infile>] [-o <outfile>] [-t] [-m <filename>] [-g <filename>] [-pre <string>] [-post <string>]
+gospn mark [-i <infile>] [-o <outfile>] [-t] [-maxstates <int>] [-m <filename>] [-g <filename>] [-pre <string>] [-post <string>]
 ```
 
 The tool analyzes the Petrinet and outputs MATLAB matrix for the transition matrix. The option `-t` creates a (semi) tangible marking.
 The option `-m` outputs a dot file to draw the marking graph. The option `-g` outputs a dot file to draw a group marking.
 The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
 The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
+
+The option `-maxstates` stops the reachability search once that many markings have been
+found, and reports how far it got instead of running until the process is killed. It
+defaults to 1,000,000, which is around 0.5-1.5 GB depending on how many places the net
+has; `-maxstates 0` removes the limit. A net that hits it is either unbounded, or large
+enough that its state space cannot be enumerated at all -- `example/k8s.spn` is the
+latter, and is meant to be analysed with `gospn sim`.
 
 ### Monte Carlo simulation
 

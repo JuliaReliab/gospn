@@ -36,6 +36,7 @@ func (m *Mark) String() string {
 
 type MarkGeneratorInterface interface {
 	genMark([]MarkInt) *Mark
+	size() int
 }
 
 // MarkGenerator interns markings: the same token vector always yields the same *Mark, so
@@ -60,6 +61,11 @@ func NewMarkGenerator(n int) *MarkGenerator {
 
 // The number of bytes one place's token count occupies in a lookup key.
 const markKeyWidth = 8
+
+// size is the number of distinct markings interned so far. The state limit watches
+// this rather than the number of markings already expanded: the intern table is what
+// holds the memory, and it runs ahead of the expansion by the branching factor.
+func (g *MarkGenerator) size() int { return len(g.data) }
 
 func (g *MarkGenerator) genMark(m []MarkInt) *Mark {
 	if n := markKeyWidth * len(m); len(g.key) != n {

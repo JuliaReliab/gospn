@@ -283,7 +283,7 @@ func buildRaid6() (*Net, []MarkInt) {
 
 func TestGoSPNP7(t *testing.T) {
 	net, imark := buildRaid6()
-	mg := CreateMarkingGraphWithDFS(net, imark)
+	mg, _ := CreateMarkingGraphWithDFS(net, imark)
 	mg.TransMatrix()
 	// if !(mg.GetSizeGroup(IMMGroup) == 19868 &&
 	// 	mg.GetSizeGroup(GENGroup) == 26244 &&

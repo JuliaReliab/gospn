@@ -35,7 +35,7 @@ func BenchmarkGoSPN(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				mg := petrinet.CreateMarkingGraphWithDFS(net, imark)
+				mg, _ := petrinet.CreateMarkingGraphWithDFS(net, imark)
 				mg.TransMatrix()
 				mg.GroupLabels()
 				mg.TransLabels()
@@ -54,7 +54,7 @@ func TestMarkingGraphSizes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cannot read %s: %v", bn.file, err)
 			}
-			mg := petrinet.CreateMarkingGraphWithDFS(net, imark)
+			mg, _ := petrinet.CreateMarkingGraphWithDFS(net, imark)
 			t.Logf("%s groups=%d translabels=%d", bn.name, len(mg.GroupLabels()), len(mg.TransLabels()))
 		})
 	}

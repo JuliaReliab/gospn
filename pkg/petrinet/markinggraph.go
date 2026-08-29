@@ -135,23 +135,40 @@ type MarkingGraph struct {
 }
 
 type makingGraphGenerator interface {
-	create(net *Net, imark []MarkInt) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link)
+	create(net *Net, imark []MarkInt, opts SearchOptions) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link, error)
 	clampEvents() []ClampSummary
 }
 
-func CreateMarkingGraph(net *Net, imark []MarkInt, method makingGraphGenerator) *MarkingGraph {
-	m0, marks, markToGenvec, markToGroupType, links := method.create(net, imark)
+// CreateMarkingGraph runs a reachability search under opts. It returns an error --
+// a *StateLimitError -- rather than a partial graph when the search hits its state
+// limit: transition matrices taken from a truncated graph look perfectly valid and
+// are not, so there is nothing safe to hand back.
+func CreateMarkingGraph(net *Net, imark []MarkInt, method makingGraphGenerator, opts SearchOptions) (*MarkingGraph, error) {
+	m0, marks, markToGenvec, markToGroupType, links, err := method.create(net, imark, opts)
+	if err != nil {
+		return nil, err
+	}
 	mg := newMarkingGraph(net, m0, marks, markToGenvec, markToGroupType, links)
 	mg.clamps = method.clampEvents()
-	return mg
+	return mg, nil
 }
 
-func CreateMarkingGraphWithDFS(net *Net, imark []MarkInt) *MarkingGraph {
-	return CreateMarkingGraph(net, imark, new(dfs))
+// CreateMarkingGraphWithDFS searches with DefaultSearchOptions, which caps the state
+// count at DefaultMaxStates. Use the Opts form to raise or remove that.
+func CreateMarkingGraphWithDFS(net *Net, imark []MarkInt) (*MarkingGraph, error) {
+	return CreateMarkingGraph(net, imark, new(dfs), DefaultSearchOptions())
 }
 
-func CreateMarkingGraphWithDFSTangible(net *Net, imark []MarkInt) *MarkingGraph {
-	return CreateMarkingGraph(net, imark, new(dfstangible))
+func CreateMarkingGraphWithDFSOpts(net *Net, imark []MarkInt, opts SearchOptions) (*MarkingGraph, error) {
+	return CreateMarkingGraph(net, imark, new(dfs), opts)
+}
+
+func CreateMarkingGraphWithDFSTangible(net *Net, imark []MarkInt) (*MarkingGraph, error) {
+	return CreateMarkingGraph(net, imark, new(dfstangible), DefaultSearchOptions())
+}
+
+func CreateMarkingGraphWithDFSTangibleOpts(net *Net, imark []MarkInt, opts SearchOptions) (*MarkingGraph, error) {
+	return CreateMarkingGraph(net, imark, new(dfstangible), opts)
 }
 
 func makeGroupString(net *Net, m []MarkInt) string {

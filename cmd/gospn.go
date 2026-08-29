@@ -65,20 +65,7 @@ func cmdview(args []string) {
 	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	flag.CommandLine.Parse(args)
 
-	var defs string
-	if *infile != "" {
-		if b, err := os.ReadFile(*infile); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	} else {
-		if b, err := io.ReadAll(os.Stdin); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	}
+	defs := readDefs(*infile, "view")
 	if *params0 != "" {
 		defs = *params0 + "\n" + defs + "\n"
 	}
@@ -103,10 +90,38 @@ func cmdview(args []string) {
 	}
 }
 
+// readDefs returns the net definition, from the file named by -i or from stdin.
+//
+// A leftover positional argument is an error rather than something to ignore. The
+// subcommands take the file with -i, so `gospn mark -o out.mat net.spn` used to drop
+// the filename, read an empty stdin, and report a one-state marking graph -- an answer
+// that looks like a successful analysis of the wrong thing.
+func readDefs(infile string, subcommand string) string {
+	if rest := flag.CommandLine.Args(); len(rest) > 0 && infile == "" {
+		fmt.Fprintf(os.Stderr,
+			"%s: unexpected argument %q. The net is given with -i, as in `gospn %s -i %s`, "+
+				"or on standard input.\n", subcommand, rest[0], subcommand, rest[0])
+		os.Exit(2)
+	}
+	if infile != "" {
+		b, err := os.ReadFile(infile)
+		if err != nil {
+			panic(err)
+		}
+		return string(b)
+	}
+	b, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
 func cmdmark(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
 	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
 	tangible := flag.Bool("t", false, "Create a (semi) tangible marking")
+	maxstates := flag.Int("maxstates", petrinet.DefaultMaxStates, "Stop the reachability search after this many states (0 for no limit)")
 	state := flag.String("s", "", "Output a state file")
 	markgraph := flag.String("m", "", "Output a dot file to draw the marking graph")
 	groupmarkgraph := flag.String("g", "", "Output a dot file to draw the group marking graph")
@@ -114,20 +129,7 @@ func cmdmark(args []string) {
 	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	flag.CommandLine.Parse(args)
 
-	var defs string
-	if *infile != "" {
-		if b, err := os.ReadFile(*infile); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	} else {
-		if b, err := io.ReadAll(os.Stdin); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	}
+	defs := readDefs(*infile, "mark")
 	if *params0 != "" {
 		defs = *params0 + "\n" + defs + "\n"
 	}
@@ -136,15 +138,30 @@ func cmdmark(args []string) {
 	}
 	net, imark := parser.PNreadFromText(defs)
 
+	// A large search used to print "Create marking..." and then nothing at all until
+	// the process was killed. Report the state count as it grows, on stderr so the
+	// summary on stdout stays pipeable.
+	opts := petrinet.SearchOptions{
+		MaxStates: *maxstates,
+		Progress: func(states int) {
+			fmt.Fprintf(os.Stderr, "\r  %d states...", states)
+		},
+	}
 	fmt.Print("Create marking...")
 	var mg *petrinet.MarkingGraph
+	var mgerr error
 	start := time.Now()
 	if *tangible {
-		mg = petrinet.CreateMarkingGraphWithDFSTangible(net, imark)
+		mg, mgerr = petrinet.CreateMarkingGraphWithDFSTangibleOpts(net, imark, opts)
 	} else {
-		mg = petrinet.CreateMarkingGraphWithDFS(net, imark)
+		mg, mgerr = petrinet.CreateMarkingGraphWithDFSOpts(net, imark, opts)
 	}
 	end := time.Now()
+	if mgerr != nil {
+		fmt.Println()
+		fmt.Fprintf(os.Stderr, "\n%v\n", mgerr)
+		os.Exit(1)
+	}
 	fmt.Println("done")
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
 	reportClamped(mg.ClampEvents())
@@ -255,20 +272,7 @@ func cmdsim(args []string) {
 	configure := flag.String("c", "", "JSON configuration (text)")
 	flag.CommandLine.Parse(args)
 
-	var defs string
-	if *infile != "" {
-		if b, err := os.ReadFile(*infile); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	} else {
-		if b, err := io.ReadAll(os.Stdin); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	}
+	defs := readDefs(*infile, "sim")
 	if *params0 != "" {
 		defs = *params0 + "\n" + defs + "\n"
 	}
@@ -347,20 +351,7 @@ func cmdtest(args []string) {
 	maxcount := flag.Int("n", 100, "Maximum number of firings for simulation")
 	flag.CommandLine.Parse(args)
 
-	var defs string
-	if *infile != "" {
-		if b, err := os.ReadFile(*infile); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	} else {
-		if b, err := io.ReadAll(os.Stdin); err == nil {
-			defs = string(b)
-		} else {
-			panic(err)
-		}
-	}
+	defs := readDefs(*infile, "test")
 	if *params0 != "" {
 		defs = *params0 + "\n" + defs + "\n"
 	}

@@ -23,7 +23,7 @@ func TestMarkDot1(t *testing.T) {
 	net.Finalize()
 
 	m0 := []MarkInt{10, 1, 1}
-	mg := CreateMarkingGraphWithDFS(net, m0)
+	mg, _ := CreateMarkingGraphWithDFS(net, m0)
 
 	writer := bytes.NewBuffer(make([]byte, 0, 256))
 	mg.ToMarkDot(writer)
@@ -46,7 +46,7 @@ func TestMarkGraph1(t *testing.T) {
 	net.Finalize()
 
 	m0 := []MarkInt{10, 1, 1}
-	mg := CreateMarkingGraphWithDFS(net, m0)
+	mg, _ := CreateMarkingGraphWithDFS(net, m0)
 
 	fmt.Println(len(mg.groups))
 	fmt.Println(mg.groupTransToLink)
@@ -83,7 +83,7 @@ func TestMarkGraph2(t *testing.T) {
 	net.Finalize()
 
 	m0 := []MarkInt{10, 1, 1}
-	mg := CreateMarkingGraphWithDFS(net, m0)
+	mg, _ := CreateMarkingGraphWithDFS(net, m0)
 
 	fmt.Println(len(mg.groups))
 	fmt.Println(mg.groupTransToLink)
@@ -121,7 +121,7 @@ func TestMarkGraph3(t *testing.T) {
 	net.Finalize()
 
 	m0 := []MarkInt{10, 1, 1}
-	mg := CreateMarkingGraphWithDFS(net, m0)
+	mg, _ := CreateMarkingGraphWithDFS(net, m0)
 
 	fmt.Println(len(mg.groups))
 	fmt.Println(mg.groupTransToLink)
