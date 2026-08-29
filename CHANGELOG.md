@@ -1,3 +1,40 @@
+# gospn 0.18.0
+
+- `gospn mark` and `gospn sim` can write **NumPy `.npz`** and **JSON** as well as MATLAB
+  v5, selected with `-format mat|npz|json`. Without the flag the extension of `-o`
+  decides and a name with no useful extension is written as `mat`, so every existing
+  invocation is unchanged -- verified variable by variable against 0.17.0 over every net
+  in `example/`
+
+  `.npz` is a zip of `.npy` members, so it needs nothing outside the standard library.
+  That matters: MATLAB v7.3 is HDF5, which has no usable pure-Go implementation, and
+  cgo would break the cross-compiled release builds. A sparse matrix `M` becomes
+  `M.data` / `M.indices` / `M.indptr` / `M.shape`, holding CSC with a 0-origin, which
+  `scipy.sparse.csc_matrix` and `SparseMatrixCSC` each take directly. Strings are stored
+  as UTF-8 byte arrays rather than NumPy's own `<U` dtype, because NPZ.jl rejects the
+  *whole* archive when it meets one
+
+  JSON is the format that can be read without a library and diffed in a review. A `.mat`
+  says nothing to `git diff`, which is how the reward-vector name collision fixed in
+  0.17.0 survived several releases
+
+- the subcommands no longer assemble MATLAB elements themselves. They fill in a
+  format-neutral `result.Result` and hand it to a writer, so the file format is decided
+  in one place instead of being interleaved with collecting the numbers
+
+- **elements are sorted by name**, so the same net produces the same file twice. Go map
+  iteration order is random and the order varied per run before this. MATLAB does not
+  care; a text golden does
+
+- **duplicate element names are now an error** rather than a silently dropped variable.
+  MATLAB's `load` keeps the last variable of a given name, `np.load` keeps the last
+  member, and a JSON object key collides -- this is the check that would have caught the
+  0.17.0 collision
+
+- `gospn mark` records `gospn_version`, `gospn_revision`, `gospn_command` and `net`. It
+  previously recorded nothing at all about the run that produced it; only `gospn sim`
+  did, and its provenance was built inline where `mark` could not reach it
+
 # gospn 0.17.0
 
 - fold the rewards as the simulation produces events, instead of storing the whole

@@ -79,10 +79,10 @@ the tool displays the contens of dot file with stdout.
 ### Generate marking
 
 ```sh
-gospn mark [-i <infile>] [-o <outfile>] [-t] [-maxstates <int>] [-m <filename>] [-g <filename>] [-pre <string>] [-post <string>]
+gospn mark [-i <infile>] [-o <outfile>] [-format <mat|npz|json>] [-t] [-maxstates <int>] [-m <filename>] [-g <filename>] [-pre <string>] [-post <string>]
 ```
 
-The tool analyzes the Petrinet and outputs MATLAB matrix for the transition matrix. The option `-t` creates a (semi) tangible marking.
+The tool analyzes the Petrinet and outputs the transition matrices. The option `-format` selects the file format; see [Output formats](#output-formats). The option `-t` creates a (semi) tangible marking.
 The option `-m` outputs a dot file to draw the marking graph. The option `-g` outputs a dot file to draw a group marking.
 The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
 The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
@@ -97,11 +97,11 @@ latter, and is meant to be analysed with `gospn sim`.
 ### Monte Carlo simulation
 
 ```sh
-gospn sim [-i <infile>] [-o <outfile>] [-s <int>] [-parallel <int>] [-f <file>] [-c <string>] [-pre <string>] [-post <string>]
+gospn sim [-i <infile>] [-o <outfile>] [-format <mat|npz|json>] [-s <int>] [-parallel <int>] [-f <file>] [-c <string>] [-pre <string>] [-post <string>]
 ```
 
 Simulate a given Petrinet and compute rewards based on Monte Carlo simulation. The option `-o` indicates the name of MATLAB
-matrix file to store the vectors for rewards. The option `-s` is a seed of random number generator.
+file to store the vectors for rewards, and `-format` selects its format (see [Output formats](#output-formats)). The option `-s` is a seed of random number generator.
 The option `-f` indicates a configuration file for the simulation that are written by
 JSON. Also, the option `-c` provides the JSON configuration as strings. If both `-f` and `-c` are given, the option `-f` is used.
 The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
@@ -133,6 +133,52 @@ The stop condition for one simulation is the AND condition for `time` and `firin
 Also, if `time` and `firings` are set to zeros, these stop conditions are removed.
 In `rewards`, we should set strings of rewards that are described in the Petrinet definition file
 (It may be useful to use the option `-p` if there is no reward you want).
+
+### Output formats
+
+`gospn mark` and `gospn sim` write the same content in any of three formats, chosen with
+`-format`. Without the flag the extension of `-o` decides, and a name with no useful
+extension is written as `mat`, so every existing invocation is unchanged.
+
+| `-format` | file | read it with |
+|---|---|---|
+| `mat` (default) | MATLAB v5 | `load` in MATLAB/Octave, `scipy.io.loadmat`, `MAT.jl` |
+| `npz` | NumPy zip archive | `numpy.load`, `NPZ.jl` |
+| `json` | JSON | anything; it is text, so it diffs |
+
+MATLAB v7.3 is deliberately not offered: it is HDF5, which has no usable pure-Go
+implementation, and cgo would break the cross-compiled release builds.
+
+In an `.npz`, a dense vector and a string are each one member under their own name (a
+string is a 0-dimensional unicode array, so `np.load` gives back a plain `str`). A sparse
+matrix `M` is four members, holding CSC with a 0-origin:
+
+```python
+import numpy as np, scipy.sparse
+z = np.load("out.npz")
+A = scipy.sparse.csc_matrix((z["M.data"], z["M.indices"], z["M.indptr"]),
+                            shape=tuple(z["M.shape"]))
+```
+
+In Julia:
+
+```julia
+using NPZ, SparseArrays
+z = npzread("out.npz")
+rows, cols = z["M.shape"]
+A = SparseMatrixCSC(rows, cols, z["M.indptr"] .+ 1, z["M.indices"] .+ 1, z["M.data"])
+```
+
+The JSON document is `{"format": "gospn-result", "version": 1, "elements": [...]}`, where
+each element carries `name`, `kind` (`sparse`, `dense` or `text`) and its data; a sparse
+element has `dims`, `nnz`, `rowind`, `colptr` and `values`. Floating-point values are
+written at full precision, so a JSON result compares exactly against a `.mat` of the same
+run.
+
+Elements are sorted by name within each group, so the same net produces the same file
+twice -- Go map iteration order is random, and before this the order varied per run.
+Both subcommands also record `gospn_version`, `gospn_revision`, `gospn_command` and
+`net`; `gospn mark` used to record nothing at all about the run that produced it.
 
 ### Monte Carlo simulation for one path
 

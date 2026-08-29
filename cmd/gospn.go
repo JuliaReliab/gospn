@@ -2,17 +2,21 @@ package main
 
 import (
 	"bufio"
-	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/okamumu/gospn/pkg/jsonout"
 	"github.com/okamumu/gospn/pkg/matout"
 	"github.com/okamumu/gospn/pkg/mt"
 	"github.com/okamumu/gospn/pkg/mxgraph"
+	"github.com/okamumu/gospn/pkg/npzout"
 	"github.com/okamumu/gospn/pkg/parser"
 	"github.com/okamumu/gospn/pkg/petrinet"
+	"github.com/okamumu/gospn/pkg/result"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -144,9 +148,59 @@ func buildRevision() string {
 	return rev
 }
 
+// formatUsage is the -format flag's help text, shared by the subcommands that write a
+// result file.
+const formatUsage = "Output format: mat (MATLAB v5), npz (NumPy) or json. Empty means guess from the -o extension, else mat"
+
+// resolveFormat decides the output format. An explicit -format wins; otherwise the
+// extension of the output file decides, so `-o out.npz` needs no second flag. The
+// default stays mat, which is what every existing invocation gets.
+func resolveFormat(format, outfile string) string {
+	if format == "" {
+		format = strings.TrimPrefix(strings.ToLower(filepath.Ext(outfile)), ".")
+	}
+	switch format {
+	case "mat", "npz", "json":
+		return format
+	case "":
+		return "mat"
+	default:
+		fmt.Fprintf(os.Stderr, "unknown output format %q (want mat, npz or json)\n", format)
+		os.Exit(1)
+		return ""
+	}
+}
+
+// writeResult writes the collected result in the requested format. The subcommands
+// collect numbers; deciding what the bytes look like happens only here.
+func writeResult(outfile, format string, r *result.Result) {
+	f := resolveFormat(format, outfile)
+	file, err := os.Create(outfile)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	writer := bufio.NewWriter(file)
+	switch f {
+	case "mat":
+		err = matout.WriteResult(writer, r)
+	case "npz":
+		err = npzout.Write(writer, r)
+	case "json":
+		err = jsonout.Write(writer, r)
+	}
+	if err != nil {
+		panic(err)
+	}
+	if err := writer.Flush(); err != nil {
+		panic(err)
+	}
+}
+
 func cmdmark(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
-	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
+	outfile := flag.String("o", "out.mat", "Name of the output file")
+	format := flag.String("format", "", formatUsage)
 	tangible := flag.Bool("t", false, "Create a (semi) tangible marking")
 	maxstates := flag.Int("maxstates", petrinet.DefaultMaxStates, "Stop the reachability search after this many states (0 for no limit)")
 	state := flag.String("s", "", "Output a state file")
@@ -194,57 +248,45 @@ func cmdmark(args []string) {
 	reportClamped(mg.ClampEvents())
 	mg.Summary()
 
-	// WriteMatrix
+	// Collect what was computed; writeResult decides what the file looks like.
+	res := &result.Result{}
 	expmat, immmat, genmat := mg.TransMatrix()
 	grouplabel := mg.GroupLabels()
 	grouptranslabel := mg.TransLabels()
-	matfile := matout.CreateMATLABMatFile(true)
-	for tr, m := range expmat {
-		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
-		dim, nnz, rowind, colptr, val := m.Get()
-		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
-		matfile.AddElement(data)
-		// fmt.Printf("Write transition matrix %s\n", label)
+	// Go map iteration order is random, so every group of elements is sorted by name
+	// before the next one starts: the same net has to produce the same file twice.
+	for _, mats := range []map[petrinet.GroupTrans]*petrinet.CSC{expmat, immmat, genmat} {
+		first := res.Len()
+		for tr, m := range mats {
+			label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
+			dim, nnz, rowind, colptr, val := m.Get()
+			res.AddSparse(label, dim, nnz, rowind, colptr, val)
+		}
+		res.SortFrom(first)
 	}
-	for tr, m := range immmat {
-		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
-		dim, nnz, rowind, colptr, val := m.Get()
-		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
-		matfile.AddElement(data)
-		// fmt.Printf("Write transition matrix %s\n", label)
+	first := res.Len()
+	for g, v := range mg.InitVector() {
+		res.AddDense(fmt.Sprintf("init%s", grouplabel[g]), v)
 	}
-	for tr, m := range genmat {
-		label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
-		dim, nnz, rowind, colptr, val := m.Get()
-		data := matout.CreateMATLABSparseMatrix(dim, label, nnz, rowind, colptr, val)
-		matfile.AddElement(data)
-		// fmt.Printf("Write transition matrix %s\n", label)
-	}
-	iv := mg.InitVector()
-	for g, v := range iv {
-		label := fmt.Sprintf("init%s", grouplabel[g])
-		data := matout.CreateMATLABMatrix(len(v), label, v)
-		matfile.AddElement(data)
-		// fmt.Printf("Write init vector %s\n", label)
-	}
-	rv := mg.RewardVector()
-	for rewardlabel, rv := range rv {
+	res.SortFrom(first)
+	first = res.Len()
+	for rewardlabel, rv := range mg.RewardVector() {
 		for g, v := range rv {
-			label := fmt.Sprintf("%s%s", rewardlabel, grouplabel[g])
-			data := matout.CreateMATLABMatrix(len(v), label, v)
-			matfile.AddElement(data)
-			// fmt.Printf("Write reward vector %s\n", label)
+			res.AddDense(fmt.Sprintf("%s%s", rewardlabel, grouplabel[g]), v)
 		}
 	}
+	res.SortFrom(first)
 
-	mfile, err := os.Create(*outfile)
-	if err != nil {
-		panic(err)
-	}
-	defer mfile.Close()
-	writer := bufio.NewWriter(mfile)
-	matfile.ToBytes(matout.NewMATLABBuffer(writer, binary.LittleEndian))
-	writer.Flush()
+	// Until now only `gospn sim` recorded where its numbers came from. A marking graph
+	// on disk said nothing about which binary or which net produced it.
+	result.Provenance{
+		Version:  version,
+		Revision: buildRevision(),
+		Net:      *infile,
+		Command:  "mark",
+	}.AddTo(res)
+
+	writeResult(*outfile, *format, res)
 
 	// Write groupmarking graph
 	if *groupmarkgraph != "" {
@@ -291,7 +333,8 @@ func cmdmark(args []string) {
 
 func cmdsim(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
-	outfile := flag.String("o", "out.mat", "Nmae of a mat file")
+	outfile := flag.String("o", "out.mat", "Name of the output file")
+	format := flag.String("format", "", formatUsage)
 	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
 	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
@@ -341,54 +384,40 @@ func cmdsim(args []string) {
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
 	reportClamped(sim.ClampEvents())
 
-	// WriteMatrix
-	matfile := matout.CreateMATLABMatFile(true)
-	for rlabel, v := range irwd {
-		label := fmt.Sprintf("%s_irwd", rlabel)
-		data := matout.CreateMATLABMatrix(len(v), label, v)
-		matfile.AddElement(data)
+	res := &result.Result{}
+	for _, rwd := range []struct {
+		suffix string
+		values map[string][]float64
+	}{{"_irwd", irwd}, {"_crwd", crwd}, {"_lastrwd", lastrwd}} {
+		first := res.Len()
+		for rlabel, v := range rwd.values {
+			res.AddDense(rlabel+rwd.suffix, v)
+		}
+		res.SortFrom(first)
 	}
-	for rlabel, v := range crwd {
-		label := fmt.Sprintf("%s_crwd", rlabel)
-		data := matout.CreateMATLABMatrix(len(v), label, v)
-		matfile.AddElement(data)
-	}
-	for rlabel, v := range lastrwd {
-		label := fmt.Sprintf("%s_lastrwd", rlabel)
-		data := matout.CreateMATLABMatrix(len(v), label, v)
-		matfile.AddElement(data)
-	}
-	matfile.AddElement(matout.CreateMATLABMatrix(len(elapsedtime), "elapsedtime", elapsedtime))
-	matfile.AddElement(matout.CreateMATLABMatrix(len(count), "count", count))
+	res.AddDense("elapsedtime", elapsedtime)
+	res.AddDense("count", count)
 
 	// What the numbers came from. Without this the file is just vectors: the seed and
 	// the horizon are what a run needs to be repeated, and the version matters because
 	// 0.16.0 changed which random stream a given seed produces.
-	matfile.AddElement(matout.CreateMATLABCharMatrix("gospn_version", version))
-	if rev := buildRevision(); rev != "" {
-		matfile.AddElement(matout.CreateMATLABCharMatrix("gospn_revision", rev))
-	}
-	if *infile != "" {
-		matfile.AddElement(matout.CreateMATLABCharMatrix("net", *infile))
-	}
-	matfile.AddElement(matout.CreateMATLABMatrix(1, "seed", []int64{*seed}))
-	matfile.AddElement(matout.CreateMATLABMatrix(1, "simulations", []int32{int32(config.NumOfSimulation)}))
-	matfile.AddElement(matout.CreateMATLABMatrix(1, "endingtime", []float64{config.EndingTime}))
-	matfile.AddElement(matout.CreateMATLABMatrix(1, "firings", []int32{config.NumOfFiring}))
-	matfile.AddElement(matout.CreateMATLABMatrix(1, "parallel", []int32{int32(config.Parallel)}))
+	result.Provenance{
+		Version:  version,
+		Revision: buildRevision(),
+		Net:      *infile,
+		Command:  "sim",
+	}.AddTo(res)
+	res.AddDense("seed", []int64{*seed})
+	res.AddDense("simulations", []int32{int32(config.NumOfSimulation)})
+	res.AddDense("endingtime", []float64{config.EndingTime})
+	res.AddDense("firings", []int32{config.NumOfFiring})
+	res.AddDense("parallel", []int32{int32(config.Parallel)})
 
 	// Clamping is reported on stderr, but the fact that a run was not exact has to
 	// travel with the data as well -- whoever reads the file later did not see it.
-	matfile.AddElement(matout.CreateMATLABMatrix(1, "clamped", []int32{int32(len(sim.ClampEvents()))}))
+	res.AddDense("clamped", []int32{int32(len(sim.ClampEvents()))})
 
-	mfile, err := os.Create(*outfile)
-	if err != nil {
-		panic(err)
-	}
-	defer mfile.Close()
-	writer := bufio.NewWriter(mfile)
-	matfile.ToBytes(matout.NewMATLABBuffer(writer, binary.LittleEndian))
-	writer.Flush()
+	writeResult(*outfile, *format, res)
 }
 
 func cmdtest(args []string) {
