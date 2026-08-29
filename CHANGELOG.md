@@ -1,3 +1,46 @@
+# gospn 0.14.0
+
+- compile guards, rates, multiplicities and rewards into typed Go closures instead of
+  walking the AST at every evaluation. **The gain is uneven and depends on the net.**
+  A net whose transitions share a guard built out of variables gains a lot;
+  `spnp_example5.spn`, where every transition carries `enall`, is about **6x** faster.
+  Nets with constant rates and simple guards gain little: 1.0x to 1.5x, and
+  `spnp_example1.spn` and `spnp_example2.spn` have nothing to compile and are unchanged.
+  Allocations drop by 50-97% wherever anything compiles
+- **simulation gains more than the marking graph does**: about 3.7x on `raid6.spn`,
+  9.2x on `spnp_example4.spn` and 18.2x on `spnp_example5.spn`, with allocations down
+  84-99.6%. A reachability search visits each marking once; `RunAll` re-evaluates the
+  same guards, rates and rewards at every event of every replication, and the rewards
+  in those nets are all `ifelse(...)`, which was fully interpreted before
+- what made the interpreter expensive was not the tree walk alone: every intermediate
+  value was boxed into an `*ASTValue`, every variable was resolved through the
+  environment by string, and every `#place` called `Net.GetPlace` by string -- none of
+  which depend on the marking, so all of it now happens once
+- an expression outside the compiled subset falls back to the interpreter, which is
+  unchanged. `TestCompiledAgreesWithInterpreter` runs both against each other over
+  every bundled net, so the two implementations cannot drift apart unnoticed
+- `makeNet` creates every place before any transition. A transition whose guard names
+  a place declared later in the file -- `raid6.spn` does -- could not have that guard
+  compiled. Marking-graph output is unaffected
+- report an undefined variable by name. It evaluates to its own name as a string, and
+  the resulting failure said only `the value is neither int32 nor float64
+  parser.ASTString`, naming neither the variable nor the expression
+
+  That message is how a **pre-existing** defect was found: `example/spnp_example6.spn`
+  had the definition of `ret_val` commented out while a reward still referred to it, so
+  `gospn mark` panicked on that net when it wrote the reward vectors. No test called
+  `RewardVector`, so nothing caught it. The definition is restored, and
+  `TestCompiledAgreesWithInterpreter` now takes the reward vectors as well
+- every expression in every bundled net compiles; nothing falls back
+- add `BenchmarkSim` and `TestSimGolden`. `RunAll` had neither a benchmark nor a
+  regression test, so nothing would have noticed it changing; the golden pins the
+  reward vectors, elapsed times and firing counts of a seeded run, and matches what
+  0.13.1 produced
+
+  Update expressions (`#place = ...`) are still interpreted. They run only on a
+  firing, which is not hot for a marking graph, but simulation is nothing but
+  firings, so a net that uses them has more to gain here than this release delivers
+
 # gospn 0.13.1
 
 - commit `go.sum`. It was deleted and added to `.gitignore` in 0.11.0, when the antlr
