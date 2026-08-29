@@ -51,7 +51,13 @@ func getString(expr ASTExpr, env ASTEnv, str string) (string, error) {
 
 // Create a closure for guard function
 func createGuardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) bool {
-	return func(mark []petrinet.MarkInt) bool {
+	compiledFn, compiledOK := compileGuard(expr, net, env)
+	if compiledOK {
+		CompileStats.GuardCompiled++
+	} else {
+		CompileStats.GuardFallback++
+	}
+	interp := func(mark []petrinet.MarkInt) bool {
 		result, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
 			logger.Panic(err)
@@ -59,15 +65,34 @@ func createGuardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrine
 		}
 		val, ok := result.boolean()
 		if !ok {
-			logger.Panic(fmt.Errorf("guard is not bool %T", result.val))
+			logger.Panic(fmt.Errorf("guard is not bool but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
 		}
 		return val
 	}
+	if !compiledOK {
+		return interp
+	}
+	if CheckCompiled { // SPIKE: run both and report the first disagreement
+		return func(mark []petrinet.MarkInt) bool {
+			c, i := compiledFn(mark), interp(mark)
+			if c != i {
+				logger.Panicf("compiled guard disagrees with the interpreter: compiled=%v interp=%v mark=%v expr=%v", c, i, mark, expr)
+			}
+			return c
+		}
+	}
+	return compiledFn
 }
 
 // Create a closure for weight and rate functions
 func createRateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
-	return func(mark []petrinet.MarkInt) float64 {
+	compiledFn, compiledOK := compileRate(expr, net, env)
+	if compiledOK {
+		CompileStats.RateCompiled++
+	} else {
+		CompileStats.RateFallback++
+	}
+	interp := func(mark []petrinet.MarkInt) float64 {
 		result, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
 			logger.Panic(err)
@@ -75,15 +100,34 @@ func createRateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet
 		}
 		val, ok := result.numeric()
 		if !ok {
-			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 %T", result.val))
+			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
 		}
 		return val
 	}
+	if !compiledOK {
+		return interp
+	}
+	if CheckCompiled {
+		return func(mark []petrinet.MarkInt) float64 {
+			c, i := compiledFn(mark), interp(mark)
+			if c != i {
+				logger.Panicf("compiled rate disagrees with the interpreter: compiled=%v interp=%v mark=%v expr=%v", c, i, mark, expr)
+			}
+			return c
+		}
+	}
+	return compiledFn
 }
 
 // Create a closure for multi function
 func createMultiFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) petrinet.MarkInt {
-	return func(mark []petrinet.MarkInt) petrinet.MarkInt {
+	compiledFn, compiledOK := compileMulti(expr, net, env)
+	if compiledOK {
+		CompileStats.MultiCompiled++
+	} else {
+		CompileStats.MultiFallback++
+	}
+	interp := func(mark []petrinet.MarkInt) petrinet.MarkInt {
 		astval, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
 			logger.Panic(err)
@@ -91,15 +135,34 @@ func createMultiFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrine
 		}
 		val, ok := astval.integer()
 		if !ok {
-			logger.Panic(fmt.Errorf("multiplicity is not int32 %T", astval.val))
+			logger.Panic(fmt.Errorf("multiplicity is not int32 but %T (%v) -- an undefined variable evaluates to its own name as a string", astval.val, astval.val))
 		}
 		return petrinet.MarkInt(val)
 	}
+	if !compiledOK {
+		return interp
+	}
+	if CheckCompiled {
+		return func(mark []petrinet.MarkInt) petrinet.MarkInt {
+			c, i := compiledFn(mark), interp(mark)
+			if c != i {
+				logger.Panicf("compiled multiplicity disagrees with the interpreter: compiled=%v interp=%v mark=%v expr=%v", c, i, mark, expr)
+			}
+			return c
+		}
+	}
+	return compiledFn
 }
 
 // Create a closure for reward function
 func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
-	return func(mark []petrinet.MarkInt) float64 {
+	compiledFn, compiledOK := compileRate(expr, net, env)
+	if compiledOK {
+		CompileStats.RewardCompiled++
+	} else {
+		CompileStats.RewardFallback++
+	}
+	interp := func(mark []petrinet.MarkInt) float64 {
 		result, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
 			logger.Panic(err)
@@ -107,10 +170,23 @@ func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrin
 		}
 		val, ok := result.numeric()
 		if !ok {
-			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 %T", result.val))
+			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
 		}
 		return val
 	}
+	if !compiledOK {
+		return interp
+	}
+	if CheckCompiled {
+		return func(mark []petrinet.MarkInt) float64 {
+			c, i := compiledFn(mark), interp(mark)
+			if c != i {
+				logger.Panicf("compiled reward disagrees with the interpreter: compiled=%v interp=%v mark=%v expr=%v", c, i, mark, expr)
+			}
+			return c
+		}
+	}
+	return compiledFn
 }
 
 // Create au update function
@@ -712,12 +788,26 @@ func makeNet(labels []string, env ASTEnv) (*petrinet.Net, []petrinet.MarkInt) {
 	net := petrinet.NewNet()
 	initmark := make(map[string]petrinet.MarkInt)
 
+	// Places first, then transitions. A transition's guard or rate may name a place
+	// that is declared later in the file -- raid6.spn does exactly that -- and
+	// compiling such an expression needs the place to exist already. Interleaving the
+	// two, as this loop used to, left those expressions to the interpreter.
+	//
+	// The relative order within pn.placelist and pn.translist is unchanged, so the
+	// indices Finalize assigns are the same; TestMarkingGraphGolden covers that.
+	for _, label := range labels {
+		value := env[label]
+		if node, ok := value.(*PNNode); ok {
+			if node.options["type"] == "place" {
+				createPlace(net, initmark, label, node, env)
+			}
+		}
+	}
+
 	for _, label := range labels {
 		value := env[label]
 		if node, ok := value.(*PNNode); ok {
 			switch node.options["type"] {
-			case "place":
-				createPlace(net, initmark, label, node, env)
 			case "imm":
 				createImmTrans(net, label, node, env)
 			case "exp":
