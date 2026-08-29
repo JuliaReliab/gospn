@@ -97,7 +97,7 @@ latter, and is meant to be analysed with `gospn sim`.
 ### Monte Carlo simulation
 
 ```sh
-gospn sim [-i <infile>] [-o <outfile>] [-s <int>] [-f <file>] [-c <string>] [-pre <string>] [-post <string>]
+gospn sim [-i <infile>] [-o <outfile>] [-s <int>] [-parallel <int>] [-f <file>] [-c <string>] [-pre <string>] [-post <string>]
 ```
 
 Simulate a given Petrinet and compute rewards based on Monte Carlo simulation. The option `-o` indicates the name of MATLAB
@@ -107,9 +107,15 @@ JSON. Also, the option `-c` provides the JSON configuration as strings. If both 
 The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
 The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
 
+Replications are independent and run in parallel. The option `-parallel` sets how many
+run at once, defaulting to one per CPU; the JSON key `parallel` does the same, and the
+flag wins if both are given. The result does not depend on it: replication `k` always
+uses the random stream derived from `k`, whichever worker runs it, so a given `-s` is
+reproducible for any `-parallel`.
+
 An example of configuration is given by
 ```json
-{ "time": 10, "firings": 1000, "simulations": 10, "rewards": ["avail", "unavail"] }
+{ "time": 10, "firings": 1000, "simulations": 10, "parallel": 4, "rewards": ["avail", "unavail"] }
 ```
 - `time` is the maximum time for simulation to stop the simulation (it's not real clock, but is the clock in simulation)
 - `firings` is the maximum number of firings to stop the simulation

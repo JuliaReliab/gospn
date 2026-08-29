@@ -1,3 +1,48 @@
+# gospn 0.16.0
+
+- run the simulation's replications in parallel. They are independent, so `RunAll` now
+  spreads them over one worker per CPU by default. On `example/k8s.spn` (50 replications
+  to time 10000) that is **2.9x** on this 10-core machine: 424 ms to 145 ms
+
+  It does not scale linearly -- 82% efficiency at 2 workers, 56% at 4, and flat at about
+  3x from 8 workers on -- and the reason took measuring rather than guessing. It is not
+  the container (a pure-CPU control in the same image scales 9.4x on 10 workers), not the
+  garbage collector (`GOGC=off` moves it from 3.25x to 3.33x), not uneven replications
+  (their firing counts run 6,065 to 6,857, so perfect balance is available), and not
+  memory bandwidth (the run allocates at 1.4 GB/s at its peak, orders of magnitude below
+  what the machine can do).
+
+  It is contention on the Go runtime's own allocator locks: at 10 workers the mutex
+  profile is 100% `runtime._LostContendedRuntimeLock`. The allocation *rate* is what
+  drives it -- roughly one 424-byte marking per firing, 318,000 of them per run, every
+  one retained in the replication's event path so none can be reused. Reusing the
+  marking buffers, or computing the rewards as events are produced instead of storing
+  the path, would cut that rate; either is a separate change
+
+- `sim` takes `-parallel`, and the configuration JSON takes `parallel`; the flag wins if
+  both are given. Zero means one worker per CPU
+
+- **the same `-s` now produces different numbers than it did up to 0.15.1.** Replications
+  used to share one sequential random stream, which cannot be parallelised; each now has
+  its own, derived from its index with `init_by_array` -- the form the Mersenne Twister
+  authors recommend for deriving several streams, and already implemented in `pkg/mt`.
+  Deriving streams by adding the index to the seed can leave nearby ones correlated,
+  which `init_by_array`'s scrambling exists to prevent
+
+  The results are statistically the same: over 20,000 replications of
+  `spnp_example4.spn` the mean cumulative `reliab` moved from 1838.4 to 1847.0 with a
+  standard error of 10.2 on the difference (z = 0.84)
+
+- **API**: `RunAll` takes the master seed rather than a `RandomNumberGenerator`, since it
+  now makes one stream per replication. `RunSimulation` is unchanged and still runs a
+  single replication with a caller-supplied generator
+
+- results do not depend on the worker count. Replication `k` takes the stream derived
+  from `k` and writes to slot `k`, never sharing memory with another worker;
+  `TestSimIsIndependentOfWorkerCount` checks the fingerprint is identical for 1, 2, 3,
+  4, 8 and 16 workers, and `TestClampCountsSurviveTheMerge` checks the per-worker clamp
+  recorders merge to the same counts. The test suite runs under `-race`
+
 # gospn 0.15.0
 
 - stop the reachability search at a state limit instead of running until the operating
