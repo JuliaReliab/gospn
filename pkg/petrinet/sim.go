@@ -88,14 +88,85 @@ func (e event) String(net *Net) string {
 	}
 }
 
+// A simulation produces one event per firing, and the reward it contributes depends
+// only on that event and the one before it. Collecting the whole path first, as
+// RunSimulation does, means one marking is allocated and kept per firing -- on
+// example/k8s.spn that is 95% of the objects the program allocates, and the resulting
+// pressure on the runtime's allocator locks is what stops RunAll scaling past about
+// three cores. A sink that folds each event as it arrives keeps nothing, so the markings
+// can be handed a buffer to reuse.
+type eventSink interface {
+	observe(t float64, m []MarkInt, tr *Trans)
+
+	// retains reports whether the sink keeps a reference to m after observe returns.
+	// A sink that does forces a fresh marking per firing.
+	retains() bool
+}
+
+// pathSink collects the events, which is what RunSimulation returns and `gospn test`
+// prints. It retains every marking, so no buffer is reused underneath it.
+type pathSink struct {
+	events []event
+}
+
+func (p *pathSink) observe(t float64, m []MarkInt, tr *Trans) {
+	p.events = append(p.events, event{time: t, mark: m, tr: tr})
+}
+
+func (p *pathSink) retains() bool { return true }
+
+// rewardSink folds the rewards as the events arrive, which is the same computation
+// calcReward performs over a stored path -- for each reward: the cumulative reward is
+// the previous rate integrated over the elapsed interval, and the instantaneous reward
+// accumulates at every firing.
+type rewardSink struct {
+	rfuncs   []func([]MarkInt) float64
+	irwd     []float64
+	crwd     []float64
+	r        []float64
+	prevtime float64
+}
+
+func newRewardSink(rfuncs []func([]MarkInt) float64) *rewardSink {
+	return &rewardSink{
+		rfuncs: rfuncs,
+		irwd:   make([]float64, len(rfuncs)),
+		crwd:   make([]float64, len(rfuncs)),
+		r:      make([]float64, len(rfuncs)),
+	}
+}
+
+func (s *rewardSink) observe(t float64, m []MarkInt, tr *Trans) {
+	dt := t - s.prevtime
+	s.prevtime = t
+	for i, f := range s.rfuncs {
+		s.crwd[i] += s.r[i] * dt
+		s.r[i] = f(m)
+		if tr != nil {
+			s.irwd[i] += s.r[i]
+		}
+	}
+}
+
+func (s *rewardSink) retains() bool { return false }
+
+func (s *rewardSink) reset() {
+	s.prevtime = 0
+	for i := range s.rfuncs {
+		s.irwd[i], s.crwd[i], s.r[i] = 0, 0, 0
+	}
+}
+
 // RunSimulation runs one replication. It records any clamping into the simulation's
 // own recorder, so it is not safe to call concurrently on the same PNSimulation; the
 // parallel path in RunAll uses runSimulation with a recorder per worker.
 func (sim *PNSimulation) RunSimulation(init []MarkInt, rng RandomNumberGenerator) ([]event, float64, int32) {
-	return sim.runSimulation(init, rng, &sim.clamps)
+	sink := &pathSink{events: make([]event, 0)}
+	t, n := sim.runSimulation(init, rng, &sim.clamps, sink)
+	return sink.events, t, n
 }
 
-func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator, clamps *clampRecorder) ([]event, float64, int32) {
+func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator, clamps *clampRecorder, sink eventSink) (float64, int32) {
 	net := sim.net
 	elapsedtime := 0.0
 	var count int32 = 0
@@ -104,7 +175,22 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 	genstates := make([]TransStatus, len(net.genlist))
 	genremain := make([]float64, len(net.genlist))
 	geninit := make([]float64, len(net.genlist))
-	events := make([]event, 0)
+	// Two buffers, used alternately: a firing reads the current marking while writing
+	// the next one, so they cannot be the same slice. Nil when the sink retains the
+	// markings, which makes doFiringInto allocate as it did before.
+	var buf [2][]MarkInt
+	var bufi int
+	if !sink.retains() {
+		buf[0] = make([]MarkInt, len(init))
+		buf[1] = make([]MarkInt, len(init))
+	}
+	nextbuf := func() []MarkInt {
+		if buf[0] == nil {
+			return nil
+		}
+		bufi = 1 - bufi
+		return buf[bufi]
+	}
 
 	// initialize for sim
 	for i, tr := range net.genlist {
@@ -130,10 +216,7 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 			}
 		}
 	}
-	events = append(events, event{
-		time: 0.0,
-		mark: m,
-	})
+	sink.observe(0.0, m, nil)
 	for {
 		for i, tr := range net.genlist {
 			switch tr.IsEnabled(net, m) {
@@ -181,14 +264,10 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 				s += w
 				if s > u {
 					var err error
-					m, err = net.immlist[i].DoFiring(net, m)
+					m, err = net.immlist[i].doFiringInto(net, m, nextbuf())
 					clamps.record(err)
 					count++
-					events = append(events, event{
-						time: elapsedtime,
-						mark: m,
-						tr:   net.immlist[i].getTrans(),
-					})
+					sink.observe(elapsedtime, m, net.immlist[i].getTrans())
 					break
 				}
 			}
@@ -214,10 +293,7 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 
 			if firingtr == nil { // absorbing state
 				if sim.EndingTime > 0.0 {
-					events = append(events, event{
-						time: sim.EndingTime,
-						mark: m,
-					})
+					sink.observe(sim.EndingTime, m, nil)
 				}
 				break
 			}
@@ -231,28 +307,21 @@ func (sim *PNSimulation) runSimulation(init []MarkInt, rng RandomNumberGenerator
 
 			if sim.EndingTime != 0.0 && elapsedtime > sim.EndingTime {
 				elapsedtime = sim.EndingTime
-				events = append(events, event{
-					time: elapsedtime,
-					mark: m,
-				})
+				sink.observe(elapsedtime, m, nil)
 				break
 			}
 
 			var err error
-			m, err = firingtr.DoFiring(net, m)
+			m, err = firingtr.doFiringInto(net, m, nextbuf())
 			clamps.record(err)
 			count++
-			events = append(events, event{
-				time: elapsedtime,
-				mark: m,
-				tr:   firingtr.getTrans(),
-			})
+			sink.observe(elapsedtime, m, firingtr.getTrans())
 		}
 		if sim.NumOfFiring != 0 && count >= sim.NumOfFiring {
 			break
 		}
 	}
-	return events, elapsedtime, count
+	return elapsedtime, count
 }
 
 // ClampEvents reports the places that had to be clamped while firing over every run
@@ -335,17 +404,23 @@ func (sim *PNSimulation) RunAll(init []MarkInt, seed int64) (map[string][]float6
 		go func(w int) {
 			defer wg.Done()
 			rng := mt.NewMT64()
+			// One sink per worker, reset between replications: the rewards are folded
+			// as the events arrive, so no path is kept and the markings are reused.
+			sink := newRewardSink(rfuncs)
 			for {
 				k := int(atomic.AddInt64(&next, 1))
 				if k >= sim.NumOfSimulation {
 					return
 				}
 				rng.InitByArray([]uint64{uint64(seed), uint64(k)})
-				events, time, count := sim.runSimulation(init, rng, &clamps[w])
+				sink.reset()
+				time, count := sim.runSimulation(init, rng, &clamps[w], sink)
 				elapsedtime[k] = time
 				nn[k] = count
-				for i, f := range rfuncs {
-					irwd[rnames[i]][k], crwd[rnames[i]][k], lastrwd[rnames[i]][k] = sim.calcReward(events, f)
+				for i := range rfuncs {
+					irwd[rnames[i]][k] = sink.irwd[i]
+					crwd[rnames[i]][k] = sink.crwd[i]
+					lastrwd[rnames[i]][k] = sink.r[i]
 				}
 			}
 		}(w)

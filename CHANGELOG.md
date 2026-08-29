@@ -1,3 +1,35 @@
+# gospn 0.17.0
+
+- fold the rewards as the simulation produces events, instead of storing the whole
+  sample path and walking it afterwards. `RunAll` allocates **186 objects per run
+  instead of 318,243**, and 0.1 MB instead of 184 MB
+
+  0.16.0 identified the ceiling on parallel scaling as contention on the Go runtime's
+  allocator locks, driven by one marking allocated per firing and retained in the event
+  path. Removing the retention lets those markings use a reused buffer, and the
+  diagnosis holds up: the mutex profile at 10 workers falls from 1.10 s of contention to
+  11.95 ms, and what is left in the CPU profile is the compiled guard and rate closures
+  doing the actual work
+
+  | workers | 0.16.0 | 0.17.0 | |
+  |---|---|---|---|
+  | 1 | 224 ms | 175 ms | 1.28x |
+  | 2 | 124 ms | 90 ms | 1.38x |
+  | 4 | 81 ms | 53 ms | 1.54x |
+  | 8 | 70 ms | 39 ms | 1.79x |
+  | 10 | 69 ms | 36 ms | 1.90x |
+
+  Parallel scaling improves with it, from 3.27x to **4.83x** on ten cores, because the
+  contention it was hitting is gone
+
+- **the numbers are unchanged.** `TestSimGolden` matches 0.16.0 exactly: folding the
+  rewards event by event is the same arithmetic `calcReward` performed over a stored
+  path, in the same order
+
+- `RunSimulation` still returns the whole path, which is what `gospn test` prints, and
+  still allocates a marking per firing -- a sink that keeps the markings suppresses the
+  buffer reuse underneath it. Only `RunAll` streams
+
 # gospn 0.16.0
 
 - run the simulation's replications in parallel. They are independent, so `RunAll` now
