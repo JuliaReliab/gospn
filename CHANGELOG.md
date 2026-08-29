@@ -1,3 +1,59 @@
+# gospn 0.17.0
+
+- fold the rewards as the simulation produces events, instead of storing the whole
+  sample path and walking it afterwards. `RunAll` allocates **186 objects per run
+  instead of 318,243**, and 0.1 MB instead of 184 MB
+
+  0.16.0 identified the ceiling on parallel scaling as contention on the Go runtime's
+  allocator locks, driven by one marking allocated per firing and retained in the event
+  path. Removing the retention lets those markings use a reused buffer, and the
+  diagnosis holds up: the mutex profile at 10 workers falls from 1.10 s of contention to
+  11.95 ms, and what is left in the CPU profile is the compiled guard and rate closures
+  doing the actual work
+
+  | workers | 0.16.0 | 0.17.0 | |
+  |---|---|---|---|
+  | 1 | 224 ms | 175 ms | 1.28x |
+  | 2 | 124 ms | 90 ms | 1.38x |
+  | 4 | 81 ms | 53 ms | 1.54x |
+  | 8 | 70 ms | 39 ms | 1.79x |
+  | 10 | 69 ms | 36 ms | 1.90x |
+
+  Parallel scaling improves with it, from 3.27x to **4.83x** on ten cores, because the
+  contention it was hitting is gone
+
+- **the numbers are unchanged.** `TestSimGolden` matches 0.16.0 exactly: folding the
+  rewards event by event is the same arithmetic `calcReward` performed over a stored
+  path, in the same order
+
+- **bugfix: the final reward was written over the instantaneous one.** `gospn sim`
+  named the `lastrwd` vectors `<reward>_irwd`, the same name it had already used for
+  `irwd`, so the file contained that variable twice and `load` returned whichever was
+  written last. The instantaneous reward could not be recovered from a result file at
+  all, and what came back under its name was something else. The vectors are now
+  `_irwd`, `_crwd` and `_lastrwd`
+
+  Scripts reading `<reward>_irwd` have been reading the final reward; they need
+  changing to keep doing so, or leaving alone to start reading what the name says
+
+- record what a result file came from. It held only the vectors, so a `.mat` on disk
+  said nothing about the run that produced it. It now also carries `gospn_version`,
+  `gospn_revision` (when the toolchain stamped one), `net`, `seed`, `simulations`,
+  `endingtime`, `firings`, `parallel` and `clamped`
+
+  The version matters more than it looks: 0.16.0 changed which random stream a given
+  seed produces, so a seed alone no longer identifies a run. `clamped` is there because
+  clamping is reported on stderr, and whoever reads the file later did not see it
+
+- `matout.CreateMATLABCharMatrix` writes a string as a MATLAB char array, which is what
+  the provenance above needs. The version reaches the binary through
+  `-ldflags -X main.version`, set by the Makefile and the release workflow; a build
+  without it reports `dev` rather than claiming a version it cannot know
+
+- `RunSimulation` still returns the whole path, which is what `gospn test` prints, and
+  still allocates a marking per firing -- a sink that keeps the markings suppresses the
+  buffer reuse underneath it. Only `RunAll` streams
+
 # gospn 0.16.0
 
 - run the simulation's replications in parallel. They are independent, so `RunAll` now

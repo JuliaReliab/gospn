@@ -1,4 +1,5 @@
-GOSPN_VERSION = 0.16.0
+GOSPN_VERSION = 0.17.0
+GOSPN_LDFLAGS = -X main.version=$(GOSPN_VERSION)
 
 deps:
 	go get github.com/antlr/antlr4/runtime/Go/antlr@4.7.2
@@ -6,7 +7,7 @@ deps:
 
 build: deps
 	mkdir -p bin
-	go build -o bin/gospn cmd/gospn.go
+	go build -ldflags "$(GOSPN_LDFLAGS)" -o bin/gospn cmd/gospn.go
 
 test: test_matout test_petrinet test_parser test_mxgraph
 
@@ -31,19 +32,19 @@ build_all: build build_linux build_darwin build_windows
 
 build_linux: deps
 	mkdir -p bin/linux
-	GOOS=linux GOARCH=amd64 go build -o bin/linux/gospn cmd/gospn.go
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(GOSPN_LDFLAGS)" -o bin/linux/gospn cmd/gospn.go
 	cd bin/linux && tar -czvf gospn-$(GOSPN_VERSION)-linux-amd64.tar.gz gospn
 
 build_darwin: deps
 	mkdir -p bin/darwin
-	GOOS=darwin GOARCH=amd64 go build -o bin/darwin/gospn cmd/gospn.go
+	GOOS=darwin GOARCH=amd64 go build -ldflags "$(GOSPN_LDFLAGS)" -o bin/darwin/gospn cmd/gospn.go
 	cd bin/darwin && tar -czvf gospn-$(GOSPN_VERSION)-darwin-amd64.tar.gz gospn
-	GOOS=darwin GOARCH=arm64 go build -o bin/darwin/gospn cmd/gospn.go
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(GOSPN_LDFLAGS)" -o bin/darwin/gospn cmd/gospn.go
 	cd bin/darwin && tar -czvf gospn-$(GOSPN_VERSION)-darwin-arm64.tar.gz gospn
 
 build_windows: deps
 	mkdir -p bin/windows
-	GOOS=windows GOARCH=amd64 go build -o bin/windows/gospn.exe cmd/gospn.go
+	GOOS=windows GOARCH=amd64 go build -ldflags "$(GOSPN_LDFLAGS)" -o bin/windows/gospn.exe cmd/gospn.go
 	cd bin/windows && zip gospn-$(GOSPN_VERSION)-windows-amd64.zip gospn.exe
 
 clean:
