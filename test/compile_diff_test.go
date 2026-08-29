@@ -28,7 +28,7 @@ func TestCompiledAgreesWithInterpreter(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cannot read %s: %v", bn.file, err)
 			}
-			mg := petrinet.CreateMarkingGraphWithDFS(net, imark)
+			mg, _ := petrinet.CreateMarkingGraphWithDFS(net, imark)
 			mg.TransMatrix() // exercises the rate closures
 
 			// RewardVector exercises the reward closures, but it can also fail for a

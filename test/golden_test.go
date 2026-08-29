@@ -102,7 +102,7 @@ func TestMarkingGraphGolden(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cannot read %s: %v", bn.file, err)
 			}
-			dump := dumpMarkingGraph(petrinet.CreateMarkingGraphWithDFS(net, imark))
+			dump := dumpMarkingGraph(mustGraph(petrinet.CreateMarkingGraphWithDFS(net, imark)))
 			sum := sha256.Sum256([]byte(dump))
 			got := hex.EncodeToString(sum[:])
 			want, ok := goldenHash[bn.name]
@@ -127,7 +127,7 @@ func TestMarkingGraphGoldenIsDeterministic(t *testing.T) {
 				if err != nil {
 					t.Fatalf("cannot read %s: %v", bn.file, err)
 				}
-				dump := dumpMarkingGraph(petrinet.CreateMarkingGraphWithDFS(net, imark))
+				dump := dumpMarkingGraph(mustGraph(petrinet.CreateMarkingGraphWithDFS(net, imark)))
 				if i == 0 {
 					first = dump
 				} else if dump != first {
@@ -136,4 +136,12 @@ func TestMarkingGraphGoldenIsDeterministic(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mustGraph is for the bundled nets, all of which are far below the state limit.
+func mustGraph(mg *petrinet.MarkingGraph, err error) *petrinet.MarkingGraph {
+	if err != nil {
+		panic(err)
+	}
+	return mg
 }

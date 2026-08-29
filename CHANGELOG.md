@@ -1,3 +1,34 @@
+# gospn 0.15.0
+
+- stop the reachability search at a state limit instead of running until the operating
+  system kills the process. `gospn mark` on a net whose state space cannot be enumerated
+  printed `Create marking...` and nothing else, then died with exit 137 and no output at
+  all -- no state count, no indication of how far it had got
+
+  `mark` takes `-maxstates`, default 1,000,000; `-maxstates 0` removes the limit. The
+  limit is in states rather than in bytes so that the same input behaves the same way on
+  every machine; the error reports the memory actually in use, which is what a limit has
+  to be chosen against (about 1,218 bytes per state on `example/k8s.spn`, 483 on
+  `spnp_example6.spn`)
+
+- report progress while searching. A long run was completely silent between
+  `Create marking...` and its result
+
+- **API**: the `CreateMarkingGraph*` functions return `(*MarkingGraph, error)`. A search
+  that stopped at its limit returns no graph on purpose: transition matrices taken from a
+  truncated marking graph look valid and are not. `CreateMarkingGraphWithDFSOpts` and
+  `...TangibleOpts` take a `SearchOptions` to set the limit and a progress callback
+
+- refuse a stray positional argument instead of ignoring it. The subcommands take the net
+  with `-i`, so `gospn mark -o out.mat net.spn` dropped the filename, read an empty
+  standard input, and reported a one-state marking graph -- an answer that looks like a
+  successful analysis of the wrong thing
+
+- add `example/k8s.spn`, a Kubernetes GSPN (53 places, 64 transitions, places holding up
+  to 1000 tokens) that is far too large to enumerate and is analysed by simulation. It is
+  the net the state limit was built against, and `BenchmarkSimK8s` measures the
+  simulation path on it
+
 # gospn 0.14.0
 
 - compile guards, rates, multiplicities and rewards into typed Go closures instead of

@@ -113,7 +113,7 @@ func TestMarkingGraphReportsClamping(t *testing.T) {
 	}
 
 	net, m0 := build()
-	events := CreateMarkingGraphWithDFS(net, m0).ClampEvents()
+	events := mustGraph(CreateMarkingGraphWithDFS(net, m0)).ClampEvents()
 	if len(events) != 1 {
 		t.Fatalf("expected 1 clamp summary from DFS, got %v", events)
 	}
@@ -122,7 +122,7 @@ func TestMarkingGraphReportsClamping(t *testing.T) {
 	}
 
 	net, m0 = build()
-	if events := CreateMarkingGraphWithDFSTangible(net, m0).ClampEvents(); len(events) != 1 {
+	if events := mustGraph(CreateMarkingGraphWithDFSTangible(net, m0)).ClampEvents(); len(events) != 1 {
 		t.Fatalf("expected 1 clamp summary from the tangible DFS, got %v", events)
 	}
 
@@ -134,7 +134,7 @@ func TestMarkingGraphReportsClamping(t *testing.T) {
 	net.NewInArc(p1, t1, 1)
 	net.NewOutArc(t1, p2, 1)
 	net.Finalize()
-	if events := CreateMarkingGraphWithDFS(net, []MarkInt{2, 0}).ClampEvents(); len(events) != 0 {
+	if events := mustGraph(CreateMarkingGraphWithDFS(net, []MarkInt{2, 0})).ClampEvents(); len(events) != 0 {
 		t.Errorf("expected no clamping, got %v", events)
 	}
 }
@@ -152,4 +152,13 @@ func TestFormatClampEvents(t *testing.T) {
 			t.Errorf("expected the report to mention %q, got %q", want, s)
 		}
 	}
+}
+
+// mustGraph is for tests whose nets are small enough that the state limit cannot
+// apply; a limit error there is a bug in the test, not a result to handle.
+func mustGraph(mg *MarkingGraph, err error) *MarkingGraph {
+	if err != nil {
+		panic(err)
+	}
+	return mg
 }

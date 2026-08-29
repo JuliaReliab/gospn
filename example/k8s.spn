@@ -1,0 +1,417 @@
+/*
+ * Kubernetes GSPN - Fig. 9(b), HPA threshold 45%
+ * Ingress + Deployments D1 and D2
+ * Based on Fe et al., JNCA 243 (2025) 104287, Figs. 2-4 and Table 9.
+ */
+
+/* ===================== Performance submodel ===================== */
+
+/* Admission */
+place EAr1 (init = 1)
+place Wr (init = 100, max = 100)
+place Wi (max = 100)
+
+exp Ar1 (guard = g_Ar1, rate = lambda_Ar1, priority = 1)
+iarc EAr1 to Ar1
+iarc Wr to Ar1
+oarc Ar1 to EAr1
+oarc Ar1 to Wi
+
+g_Ar1 = (#EAr1 > 0)
+lambda_Ar1 = 0.02
+
+/* Ingress */
+place Iqc (init = 30, max = 1000)
+place Iq
+place Ipc (init = 3, max = 1000)
+place Ipp
+place Ipd
+place Id1w
+place Id2w
+
+imm Iqe (priority = 1)
+imm Ise (priority = 1)
+exp Iptproc (rate = rate_Ipt, priority = 1)
+imm Id1 (weight = 1.0, priority = 1)
+imm Id2 (weight = 1.0, priority = 1)
+
+imm Iqa (guard = g1, priority = 3)
+imm Iqr (guard = g2, priority = 3)
+imm Ipa (guard = g3, priority = 3)
+imm Ipr (guard = g4, priority = 3)
+
+iarc Wi to Iqe
+iarc Iqc to Iqe
+oarc Iqe to Iq
+
+iarc Iq to Ise
+iarc Ipc to Ise
+oarc Ise to Ipp
+oarc Ise to Iqc
+
+iarc Ipp to Iptproc
+oarc Iptproc to Ipd
+
+iarc Ipd to Id1
+oarc Id1 to Id1w
+iarc Ipd to Id2
+oarc Id2 to Id2w
+
+oarc Iqa to Iqc
+iarc Iqc to Iqr
+oarc Ipa to Ipc
+iarc Ipc to Ipr
+
+Iqpp = 10
+mean_Ipt = 0.01
+rate_Ipt = #Ipp / mean_Ipt
+
+g1 = (#Iq + #Iqc) < (#HIpt * Iqpp)
+g2 = (#Iq + #Iqc) > (#HIpt * Iqpp)
+g3 = (#Ipp + #Ipd + #Ipc + #Id1w + #Id2w) < #HIpt
+g4 = (#Ipp + #Ipd + #Ipc + #Id1w + #Id2w) > #HIpt
+
+/* Deployment D1 */
+place D1qc (init = 50, max = 1000)
+place D1q
+place D1pc (init = 5, max = 1000)
+place D1pp
+
+imm D1qe (priority = 1)
+imm D1pe (priority = 1)
+exp D1ptproc (rate = rate_D1pt, priority = 1)
+imm D1qa (guard = g5, priority = 3)
+imm D1qr (guard = g6, priority = 3)
+imm D1pa (guard = g7, priority = 3)
+imm D1prcap (guard = g8, priority = 3)
+
+iarc Id1w to D1qe
+iarc D1qc to D1qe
+oarc D1qe to D1q
+oarc D1qe to Ipc
+iarc D1q to D1pe
+iarc D1pc to D1pe
+oarc D1pe to D1pp
+oarc D1pe to D1qc
+iarc D1pp to D1ptproc
+oarc D1ptproc to D1pc
+oarc D1ptproc to Wr
+oarc D1qa to D1qc
+iarc D1qc to D1qr
+oarc D1pa to D1pc
+iarc D1pc to D1prcap
+
+D1qpp = 10
+mean_D1pt = 0.15
+rate_D1pt = #D1pp / mean_D1pt
+g5 = (#D1qc + #D1q) < (#D1pt * D1qpp)
+g6 = (#D1qc + #D1q) > (#D1pt * D1qpp)
+g7 = (#D1pc + #D1pp) < #D1pt
+g8 = (#D1pc + #D1pp) > #D1pt
+
+/* Deployment D2 */
+place D2qc (init = 50, max = 1000)
+place D2q
+place D2pc (init = 5, max = 1000)
+place D2pp
+
+imm D2qe (priority = 1)
+imm D2pe (priority = 1)
+exp D2ptproc (rate = rate_D2pt, priority = 1)
+imm D2qa (guard = g22, priority = 3)
+imm D2qr (guard = g23, priority = 3)
+imm D2pa (guard = g24, priority = 3)
+imm D2prcap (guard = g25, priority = 3)
+
+iarc Id2w to D2qe
+iarc D2qc to D2qe
+oarc D2qe to D2q
+oarc D2qe to Ipc
+iarc D2q to D2pe
+iarc D2pc to D2pe
+oarc D2pe to D2pp
+oarc D2pe to D2qc
+iarc D2pp to D2ptproc
+oarc D2ptproc to D2pc
+oarc D2ptproc to Wr
+oarc D2qa to D2qc
+iarc D2qc to D2qr
+oarc D2pa to D2pc
+iarc D2pc to D2prcap
+
+D2qpp = 10
+mean_D2pt = 0.10
+rate_D2pt = #D2pp / mean_D2pt
+g22 = (#D2qc + #D2q) < (#D2pt * D2qpp)
+g23 = (#D2qc + #D2q) > (#D2pt * D2qpp)
+g24 = (#D2pc + #D2pp) < #D2pt
+g25 = (#D2pc + #D2pp) > #D2pt
+
+/* ================= Horizontal Pod Autoscaler ================= */
+
+/* HPA timers */
+place Chw (init = 1)
+place Ch
+place Scdw (init = 1)
+place Scd
+place Scuw
+place Scu (init = 1)
+
+exp Chd (rate = rate_Chd)
+imm Chc (priority = 1)
+exp Scdd (rate = rate_Scdd)
+imm Scdc (priority = 1)
+exp Scud (rate = rate_Scud)
+imm Scuc (priority = 1)
+
+iarc Chw to Chd
+oarc Chd to Ch
+iarc Ch to Chc
+oarc Chc to Chw
+iarc Scdw to Scdd
+oarc Scdd to Scd
+iarc Scd to Scdc
+oarc Scdc to Scdw
+iarc Scuw to Scud
+oarc Scud to Scu
+iarc Scu to Scuc
+oarc Scuc to Scuw
+
+rate_Chd = 1.0 / 15.0
+rate_Scdd = 1.0 / 300.0
+rate_Scud = 1.0 / 15.0
+
+/* Four nodes x four Pod slots = 16; 3+5+5 initially used. */
+place Pic (init = 3, max = 1000)
+imm Pia (guard = g17, priority = 4)
+imm Pir (guard = g18, priority = 4)
+oarc Pia to Pic
+iarc Pic to Pir
+
+/* HPA Ingress */
+place HIpct
+place HIpcr
+place HIpc
+place HIprw
+place HIprr
+place HIpr
+place HIpt (init = 3)
+
+imm Ipcc (guard = g9, priority = 2)
+exp Ipcwt (rate = rate_Ipcwt, priority = 1)
+imm Ipcrr (guard = g10, priority = 2)
+exp Ipcd (rate = rate_Ipcd, priority = 1)
+imm Iprc (guard = g11, priority = 2)
+exp Iprwt (rate = rate_Iprwt, priority = 1)
+imm Ipr_trans (guard = g12, priority = 2)
+exp Iprd (rate = rate_Iprd, priority = 2)
+
+oarc Ipcc to HIpct
+iarc HIpct to Ipcwt
+oarc Ipcwt to HIpcr
+iarc HIpcr to Ipcrr
+iarc Pic to Ipcrr
+oarc Ipcrr to HIpc
+iarc HIpc to Ipcd
+oarc Ipcd to HIpt
+oarc Iprc to HIprw
+iarc HIprw to Iprwt
+oarc Iprwt to HIprr
+iarc HIprr to Ipr_trans
+iarc HIpt to Ipr_trans
+oarc Ipr_trans to HIpr
+iarc HIpr to Iprd
+oarc Iprd to Pic
+
+rate_Ipcwt = #HIpct / 60.0
+rate_Ipcd = #HIpc / 30.0
+rate_Iprwt = #HIprw / 60.0
+rate_Iprd = #HIpr / 0.01
+
+/* HPA Deployment D1 */
+place D1pcw
+place D1pcr
+place D1pc_creating
+place D1pt (init = 5)
+place D1prw
+place D1prr
+place D1pr
+
+imm D1pcc (guard = g13, priority = 2)
+exp D1pcwd (rate = rate_D1pcwd, priority = 1)
+imm D1pcrr (guard = g14, priority = 2)
+exp D1pcd (rate = rate_D1pcd, priority = 1)
+imm D1prc (guard = g15, priority = 2)
+exp D1prwt (rate = rate_D1prwt, priority = 1)
+imm D1pr_trans (guard = g16, priority = 2)
+exp D1prd (rate = rate_D1prd, priority = 1)
+
+oarc D1pcc to D1pcw
+iarc D1pcw to D1pcwd
+oarc D1pcwd to D1pcr
+iarc D1pcr to D1pcrr
+iarc Pic to D1pcrr
+oarc D1pcrr to D1pc_creating
+iarc D1pc_creating to D1pcd
+oarc D1pcd to D1pt
+oarc D1prc to D1prw
+iarc D1prw to D1prwt
+oarc D1prwt to D1prr
+iarc D1prr to D1pr_trans
+iarc D1pt to D1pr_trans
+oarc D1pr_trans to D1pr
+iarc D1pr to D1prd
+oarc D1prd to Pic
+
+rate_D1pcwd = #D1pcw / 60.0
+rate_D1pcd = #D1pc_creating / 30.0
+rate_D1prwt = #D1prw / 60.0
+rate_D1prd = #D1pr / 0.01
+
+/* HPA Deployment D2 */
+place D2pcw
+place D2pcr
+place D2pc_creating
+place D2pt (init = 5)
+place D2prw
+place D2prr
+place D2pr
+
+imm D2pcc (guard = g26, priority = 2)
+exp D2pcwd (rate = rate_D2pcwd, priority = 1)
+imm D2pcrr (guard = g27, priority = 2)
+exp D2pcd (rate = rate_D2pcd, priority = 1)
+imm D2prc (guard = g28, priority = 2)
+exp D2prwt (rate = rate_D2prwt, priority = 1)
+imm D2pr_trans (guard = g29, priority = 2)
+exp D2prd (rate = rate_D2prd, priority = 1)
+
+oarc D2pcc to D2pcw
+iarc D2pcw to D2pcwd
+oarc D2pcwd to D2pcr
+iarc D2pcr to D2pcrr
+iarc Pic to D2pcrr
+oarc D2pcrr to D2pc_creating
+iarc D2pc_creating to D2pcd
+oarc D2pcd to D2pt
+oarc D2prc to D2prw
+iarc D2prw to D2prwt
+oarc D2prwt to D2prr
+iarc D2prr to D2pr_trans
+iarc D2pt to D2pr_trans
+oarc D2pr_trans to D2pr
+iarc D2pr to D2prd
+oarc D2prd to Pic
+
+rate_D2pcwd = #D2pcw / 60.0
+rate_D2pcd = #D2pc_creating / 30.0
+rate_D2prwt = #D2prw / 60.0
+rate_D2prd = #D2pr / 0.01
+
+/* Table 9 parameters; use case II fixes all HPA thresholds at 45%. */
+I_u = 0.45
+D1_u = 0.45
+D2_u = 0.45
+Is_cval = 3
+D1_cval = 5
+D2_cval = 5
+Icn = 4
+Irn = 100
+D1_cn = 4
+D1_rn = 100
+D2_cn = 4
+D2_rn = 100
+Npp1 = 4
+Nppm = 4
+
+ingressPodTotal = #HIpct + #HIpcr + #HIpc + #HIpt
+g9 = ((1.0 * (#Ipp + #Ipd + #Id1w + #Id2w) / ingressPodTotal) > I_u) && (#Ch == 1) && ((#HIpct + #HIpcr) <= Icn)
+g10 = (#Scu == 1)
+g11 = ((1.0 * (#Ipp + #Ipd + #Id1w + #Id2w) / ingressPodTotal) < I_u) && (#Ch == 1) && ((#HIprw + #HIprr) <= Irn) && ((#HIpt - (#HIprw + #HIprr)) > Is_cval)
+g12 = (#Scd == 1)
+
+g13 = ((1.0 * #D1pp / (#D1pcw + #D1pcr + #D1pc_creating + #D1pt)) > D1_u) && (#Ch == 1) && ((#D1pcw + #D1pcr) <= D1_cn)
+g14 = (#Scu == 1)
+g15 = ((1.0 * #D1pp / (#D1pcw + #D1pcr + #D1pc_creating + #D1pt)) < D1_u) && (#Ch == 1) && ((#D1prw + #D1prr) <= D1_rn) && ((#D1pt - (#D1prw + #D1prr)) > D1_cval)
+g16 = (#Scd == 1)
+
+g26 = ((1.0 * #D2pp / (#D2pcw + #D2pcr + #D2pc_creating + #D2pt)) > D2_u) && (#Ch == 1) && ((#D2pcw + #D2pcr) <= D2_cn)
+g27 = (#Scu == 1)
+g28 = ((1.0 * #D2pp / (#D2pcw + #D2pcr + #D2pc_creating + #D2pt)) < D2_u) && (#Ch == 1) && ((#D2prw + #D2prr) <= D2_rn) && ((#D2pt - (#D2prw + #D2prr)) > D2_cval)
+g29 = (#Scd == 1)
+
+g17 = (#Pic + #HIpc + #HIpt + #HIpr + #D1pc_creating + #D1pt + #D1pr + #D2pc_creating + #D2pt + #D2pr) < ((#Ne1 + #Nwr1) * Nppm)
+g18 = (#Pic + #HIpc + #HIpt + #HIpr + #D1pc_creating + #D1pt + #D1pr + #D2pc_creating + #D2pt + #D2pr) > ((#Ne1 + #Nwr1) * Nppm)
+
+/* ==================== Cluster Autoscaler ==================== */
+place Cnw (init = 1)
+place Cn
+exp Cnt (rate = rate_Cnt)
+imm Cnit (priority = 1)
+iarc Cnw to Cnt
+oarc Cnt to Cn
+iarc Cn to Cnit
+oarc Cnit to Cnw
+
+place Nd1 (init = 8)
+place New1
+place Ne1 (init = 4)
+place Nwr1
+place Ndw1
+
+imm Nec1 (guard = g19, priority = 2)
+exp Ned1 (rate = rate_Ned)
+imm Nr1 (guard = g20, priority = 2)
+imm Nrr1 (guard = g21, priority = 2)
+exp Nrd1 (rate = rate_Nrd)
+exp Ndd1 (rate = rate_Ndd)
+
+iarc Nd1 to Nec1
+oarc Nec1 to New1
+iarc New1 to Ned1
+oarc Ned1 to Ne1
+iarc Ne1 to Nr1
+oarc Nr1 to Nwr1
+iarc Nwr1 to Nrr1
+oarc Nrr1 to Ne1
+iarc Nwr1 to Nrd1
+oarc Nrd1 to Ndw1
+iarc Ndw1 to Ndd1
+oarc Ndd1 to Nd1
+
+rate_Cnt = 1.0 / 10.0
+rate_Ned = #New1 / 90.0
+rate_Nrd = #Nwr1 / 600.0
+rate_Ndd = #Ndw1 / 40.0
+Nmu = 0.50
+Ne1val = 4
+
+neededPods = #HIpct + #HIpcr + #D1pcw + #D1pcr + #D2pcw + #D2pcr
+creatingCapacity = #New1 * Npp1
+clusterUtil = 1.0 * (#Ipp + #Ipd + #Id1w + #Id2w + #D1pp + #D2pp) / ((#New1 + #Ne1 + #Nwr1) * Nppm)
+g19 = (#Pic == 0) && (#Cn == 1) && (neededPods > creatingCapacity)
+g20 = (#Cn == 1) && (clusterUtil < Nmu) && (#Ne1 > Ne1val)
+g21 = (#Cn == 1) && (clusterUtil >= Nmu)
+
+/* Rewards */
+reward perf_Iq #Iq
+reward perf_Ipp #Ipp
+reward perf_Id1w #Id1w
+reward perf_Id2w #Id2w
+reward perf_D1q #D1q
+reward perf_D1pp #D1pp
+reward perf_D2q #D2q
+reward perf_D2pp #D2pp
+reward throughput ((#D1pp / mean_D1pt) + (#D2pp / mean_D2pt))
+reward jobs (#Iq + #Ipp + #Ipd + #Id1w + #Id2w + #D1q + #D1pp + #D2q + #D2pp)
+reward drop_probability ifelse((#Iqc == 0) && (#Wi > 0), 1.0, 0.0)
+reward hpa_HIpt #HIpt
+reward hpa_D1pt #D1pt
+reward hpa_D2pt #D2pt
+reward hpa_Pic #Pic
+reward hpa_D1pc #D1pc_creating
+reward hpa_D2pc #D2pc_creating
+reward ca_Ne1 #Ne1
+reward ca_Nwr1 #Nwr1
+reward ca_Pic #Pic
+reward ca_New1 #New1
