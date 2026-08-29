@@ -26,6 +26,30 @@
   rewards event by event is the same arithmetic `calcReward` performed over a stored
   path, in the same order
 
+- **bugfix: the final reward was written over the instantaneous one.** `gospn sim`
+  named the `lastrwd` vectors `<reward>_irwd`, the same name it had already used for
+  `irwd`, so the file contained that variable twice and `load` returned whichever was
+  written last. The instantaneous reward could not be recovered from a result file at
+  all, and what came back under its name was something else. The vectors are now
+  `_irwd`, `_crwd` and `_lastrwd`
+
+  Scripts reading `<reward>_irwd` have been reading the final reward; they need
+  changing to keep doing so, or leaving alone to start reading what the name says
+
+- record what a result file came from. It held only the vectors, so a `.mat` on disk
+  said nothing about the run that produced it. It now also carries `gospn_version`,
+  `gospn_revision` (when the toolchain stamped one), `net`, `seed`, `simulations`,
+  `endingtime`, `firings`, `parallel` and `clamped`
+
+  The version matters more than it looks: 0.16.0 changed which random stream a given
+  seed produces, so a seed alone no longer identifies a run. `clamped` is there because
+  clamping is reported on stderr, and whoever reads the file later did not see it
+
+- `matout.CreateMATLABCharMatrix` writes a string as a MATLAB char array, which is what
+  the provenance above needs. The version reaches the binary through
+  `-ldflags -X main.version`, set by the Makefile and the release workflow; a build
+  without it reports `dev` rather than claiming a version it cannot know
+
 - `RunSimulation` still returns the whole path, which is what `gospn test` prints, and
   still allocates a marking per firing -- a sink that keeps the markings suppresses the
   buffer reuse underneath it. Only `RunAll` streams

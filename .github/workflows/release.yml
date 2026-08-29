@@ -122,7 +122,7 @@ jobs:
           mkdir -p dist/stage dist/out
           # -trimpath keeps build machine paths out of the binary; -s -w drops the
           # symbol table and DWARF, which roughly halves the size.
-          go build -trimpath -ldflags '-s -w' -o "dist/stage/$bin" ./cmd/gospn.go
+          go build -trimpath -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.version }}" -o "dist/stage/$bin" ./cmd/gospn.go
           cd dist/stage
           if [ '${{ matrix.archive }}' = zip ]; then
             zip -q "../out/${name}.zip" "$bin"

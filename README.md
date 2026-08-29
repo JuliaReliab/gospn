@@ -107,6 +107,13 @@ JSON. Also, the option `-c` provides the JSON configuration as strings. If both 
 The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
 The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
 
+The result file holds one value per replication -- `<reward>_irwd`, `<reward>_crwd`,
+`<reward>_lastrwd`, plus `elapsedtime` and `count` -- rather than an average, so
+confidence intervals can be computed from it. Alongside them it records what the run
+was: `gospn_version`, `gospn_revision`, `net`, `seed`, `simulations`, `endingtime`,
+`firings`, `parallel`, and `clamped` (non-zero if any firing was clamped, which makes
+the results inexact).
+
 Replications are independent and run in parallel. The option `-parallel` sets how many
 run at once, defaulting to one per CPU; the JSON key `parallel` does the same, and the
 flag wins if both are given. The result does not depend on it: replication `k` always

@@ -334,6 +334,8 @@ func getdatatype(data interface{}) (MATLABDataType, int) {
 		return miDOUBLE, 8
 	case []int32:
 		return miINT32, 4 * len(data.([]int32))
+	case []uint16:
+		return miUINT16, 2 * len(data.([]uint16))
 	case []uint32:
 		return miUINT32, 4 * len(data.([]uint32))
 	case []int64:
@@ -501,6 +503,39 @@ func (d *MATLABSparseMatrix) ToBytes(buf *MATLABBuffer) *MATLABBuffer {
 }
 
 // The function to write
+// CreateMATLABCharMatrix writes a string as a 1-by-n MATLAB char array, which is what
+// `load` gives back as a character row vector. It exists so that a result file can
+// carry the provenance of the run that produced it -- the gospn version, the net it
+// came from -- alongside the numbers.
+//
+// MATLAB stores characters as UTF-16 code units, so the string is written as miUINT16.
+// Only the BMP is representable this way; a rune outside it is written as U+FFFD rather
+// than as a surrogate pair, since these strings are labels and identifiers.
+func CreateMATLABCharMatrix(name string, value string) *MATLABMatrix {
+	runes := []rune(value)
+	data := make([]uint16, len(runes))
+	for i, r := range runes {
+		if r > 0xFFFF {
+			r = 0xFFFD
+		}
+		data[i] = uint16(r)
+	}
+	arrayFlags := CreateMATLABArrayFlags(0, mxCHAR_CLASS, false, false, false)
+	dimensionsArray := CreateMATLABArray([]int32{1, int32(len(data))})
+	arrayName := CreateMATLABDataString(name)
+	realValue := CreateMATLABArray(data)
+	header, padding := createMATLABDataElementHeader(miMATRIX,
+		arrayFlags.byteLen()+dimensionsArray.byteLen()+arrayName.byteLen()+realValue.byteLen())
+	return &MATLABMatrix{
+		header:          header,
+		arrayFlags:      arrayFlags,
+		dimensionsArray: dimensionsArray,
+		arrayName:       arrayName,
+		realValue:       realValue,
+		padding:         padding,
+	}
+}
+
 func CreateMATLABSparseMatrix(dims interface{}, name string, nnz int,
 	ir interface{}, jc interface{}, pr interface{}) *MATLABSparseMatrix {
 	arrayFlags := CreateMATLABArrayFlags(uint32(nnz), mxSPARSE_CLASS, false, false, false)

@@ -12,6 +12,7 @@ import (
 	"github.com/okamumu/gospn/pkg/petrinet"
 	"io"
 	"os"
+	"runtime/debug"
 	"time"
 )
 
@@ -115,6 +116,32 @@ func readDefs(infile string, subcommand string) string {
 		panic(err)
 	}
 	return string(b)
+}
+
+// version is set at build time with -ldflags "-X main.version=...". A binary built
+// without it says so rather than claiming a version it cannot know.
+var version = "dev"
+
+// buildRevision returns the commit the binary was built from. The Go toolchain records
+// it automatically when building from a checkout, so this needs no build plumbing.
+func buildRevision() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	rev, dirty := "", false
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			dirty = s.Value == "true"
+		}
+	}
+	if rev != "" && dirty {
+		return rev + "-dirty"
+	}
+	return rev
 }
 
 func cmdmark(args []string) {
@@ -327,12 +354,32 @@ func cmdsim(args []string) {
 		matfile.AddElement(data)
 	}
 	for rlabel, v := range lastrwd {
-		label := fmt.Sprintf("%s_irwd", rlabel)
+		label := fmt.Sprintf("%s_lastrwd", rlabel)
 		data := matout.CreateMATLABMatrix(len(v), label, v)
 		matfile.AddElement(data)
 	}
 	matfile.AddElement(matout.CreateMATLABMatrix(len(elapsedtime), "elapsedtime", elapsedtime))
 	matfile.AddElement(matout.CreateMATLABMatrix(len(count), "count", count))
+
+	// What the numbers came from. Without this the file is just vectors: the seed and
+	// the horizon are what a run needs to be repeated, and the version matters because
+	// 0.16.0 changed which random stream a given seed produces.
+	matfile.AddElement(matout.CreateMATLABCharMatrix("gospn_version", version))
+	if rev := buildRevision(); rev != "" {
+		matfile.AddElement(matout.CreateMATLABCharMatrix("gospn_revision", rev))
+	}
+	if *infile != "" {
+		matfile.AddElement(matout.CreateMATLABCharMatrix("net", *infile))
+	}
+	matfile.AddElement(matout.CreateMATLABMatrix(1, "seed", []int64{*seed}))
+	matfile.AddElement(matout.CreateMATLABMatrix(1, "simulations", []int32{int32(config.NumOfSimulation)}))
+	matfile.AddElement(matout.CreateMATLABMatrix(1, "endingtime", []float64{config.EndingTime}))
+	matfile.AddElement(matout.CreateMATLABMatrix(1, "firings", []int32{config.NumOfFiring}))
+	matfile.AddElement(matout.CreateMATLABMatrix(1, "parallel", []int32{int32(config.Parallel)}))
+
+	// Clamping is reported on stderr, but the fact that a run was not exact has to
+	// travel with the data as well -- whoever reads the file later did not see it.
+	matfile.AddElement(matout.CreateMATLABMatrix(1, "clamped", []int32{int32(len(sim.ClampEvents()))}))
 
 	mfile, err := os.Create(*outfile)
 	if err != nil {
