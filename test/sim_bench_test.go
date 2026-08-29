@@ -3,7 +3,6 @@ package test
 import (
 	"testing"
 
-	"github.com/okamumu/gospn/pkg/mt"
 	"github.com/okamumu/gospn/pkg/parser"
 	"github.com/okamumu/gospn/pkg/petrinet"
 )
@@ -39,9 +38,7 @@ func BenchmarkSim(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				sim := petrinet.NewPNSimulation(net, cfg)
-				rng := mt.NewMT64()
-				rng.Seed(12345)
-				sim.RunAll(imark, rng)
+				sim.RunAll(imark, 12345)
 			}
 		})
 	}

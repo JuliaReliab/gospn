@@ -117,6 +117,24 @@ func (r *clampRecorder) record(err error) {
 	}
 }
 
+// merge folds another recorder's events into this one, preserving the first-seen
+// order of this one and appending anything new. Replications run in parallel, each
+// with its own recorder, and this is how their reports are combined afterwards --
+// a recorder is not safe to share while they run.
+func (r *clampRecorder) merge(other *clampRecorder) {
+	for _, s := range other.list {
+		if i, ok := r.index[s.ClampEvent]; ok {
+			r.list[i].Count += s.Count
+			continue
+		}
+		if r.index == nil {
+			r.index = make(map[ClampEvent]int)
+		}
+		r.index[s.ClampEvent] = len(r.list)
+		r.list = append(r.list, s)
+	}
+}
+
 // events returns the clamping seen so far, in the order it was first seen.
 func (r *clampRecorder) events() []ClampSummary {
 	if len(r.list) == 0 {

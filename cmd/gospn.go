@@ -268,6 +268,7 @@ func cmdsim(args []string) {
 	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
 	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
+	parallel := flag.Int("parallel", 0, "Number of replications to run at once (0 for one per CPU)")
 	configfile := flag.String("f", "", "Configuration file for simulation")
 	configure := flag.String("c", "", "JSON configuration (text)")
 	flag.CommandLine.Parse(args)
@@ -299,14 +300,15 @@ func cmdsim(args []string) {
 	} else {
 		panic(err)
 	}
+	// The flag wins over the configuration file when both name a worker count.
+	if *parallel != 0 {
+		config.Parallel = *parallel
+	}
 	sim := petrinet.NewPNSimulation(net, config)
-	rng := mt.NewMT64()
-	// rng := rand.New(rand.NewSource(0))
-	rng.Seed(*seed)
 
 	fmt.Print("Run simulation...")
 	start := time.Now()
-	irwd, crwd, lastrwd, elapsedtime, count := sim.RunAll(imark, rng)
+	irwd, crwd, lastrwd, elapsedtime, count := sim.RunAll(imark, *seed)
 	end := time.Now()
 	fmt.Println("done")
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
