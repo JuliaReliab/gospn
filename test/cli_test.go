@@ -390,6 +390,20 @@ func TestCLIViewAndGen(t *testing.T) {
 	if !bytes.Contains(b, []byte("place")) {
 		t.Errorf("gen wrote no places:\n%s", b)
 	}
+
+	// The same diagram gives the same definition, so the generated file can live beside
+	// the diagram in version control.
+	spn2 := filepath.Join(t.TempDir(), "again.spn")
+	if r := run(t, "", "gen", "-i", "data/test.drawio", "-o", spn2); r.code != 0 {
+		t.Fatalf("gen: exit %d: %s", r.code, r.out())
+	}
+	b2, err2 := os.ReadFile(spn2)
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+	if !bytes.Equal(b, b2) {
+		t.Error("two conversions of the same diagram differ")
+	}
 }
 
 // `gospn` on its own used to panic with an index-out-of-range.

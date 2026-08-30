@@ -1,0 +1,19 @@
+// Begin: This part has been generated automatically from XML file.
+
+
+// place
+place P1
+place id_KOgsF__jHEW4DDS4wV4I_4
+
+// trans
+imm id_KOgsF__jHEW4DDS4wV4I_2
+exp id_KOgsF__jHEW4DDS4wV4I_3
+
+// arc
+arc P1 to id_KOgsF__jHEW4DDS4wV4I_2
+arc id_KOgsF__jHEW4DDS4wV4I_2 to id_KOgsF__jHEW4DDS4wV4I_4
+arc id_KOgsF__jHEW4DDS4wV4I_3 to P1
+arc id_KOgsF__jHEW4DDS4wV4I_4 to id_KOgsF__jHEW4DDS4wV4I_3
+
+
+// End: This part has been generated automatically from XML file.

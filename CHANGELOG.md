@@ -1,3 +1,30 @@
+# gospn 0.32.0
+
+- **`gospn gen` is reproducible.** The same diagram produced a different definition on
+  every run: the declarations were written while ranging over `map[string]MxElement`, and
+  the options while ranging over a `map[string]string`. Over eight runs of
+  `test/data/test.drawio`, all eight differed. That defeats keeping the generated `.spn`
+  beside the diagram it came from, and made a one-shape edit look like a whole-file
+  change.
+
+  Places and transitions are written in label order, arcs in source-then-destination
+  order, and options in the order the option list declares them (`rate`, `guard`,
+  `priority`, ...) rather than at random. Same class as the DOT node names fixed in
+  0.29.0 and the matrix ordering in 0.19.0. Two goldens in `test/data/golden/` pin the
+  output, and the CLI test checks two runs agree.
+
+- **The draw.io shape library is in the repository**, as `library/MRSPN.xml`, and the
+  README points at the raw URL here rather than at a gist. It is the first step of the
+  graphical workflow -- the tool cannot read a diagram whose objects lack the `type`
+  property -- and nothing in the repository recorded what it was supposed to contain, so
+  the documented workflow depended on a file outside version control. The gist is the
+  same file and stays as a mirror.
+
+- README: the conversion is **one way**. There is no `.spn` to `.drawio`, so the diagram
+  is the source and the definition is a build artefact; editing the `.spn` by hand leaves
+  the two to drift with nothing to detect it. `gospn view` writes DOT for viewing, not a
+  diagram to edit. This was true and unwritten.
+
 # gospn 0.31.0
 
 - **The memory benchmark can answer where the memory goes.** `BenchmarkMarkingGraphMemory`

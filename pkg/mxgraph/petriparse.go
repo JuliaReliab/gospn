@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	_ "strconv"
 	"strings"
 )
@@ -14,15 +15,26 @@ import (
 var logger *log.Logger
 
 type Component map[string]interface{}
-type Options map[string]string
 
-func (o Options) toString() string {
-	s := make([]string, 0, len(o))
-	for k, v := range o {
-		s = append(s, k+" = "+v)
+// Options is the option list of one declaration, in the order it will be written.
+// It was a map, so `place P (init = 1, max = 10)` and `place P (max = 10, init = 1)`
+// came out of the same diagram on different runs.
+type Options []string
+
+// add sets an option, replacing it in place if it is already there -- a place's `init`
+// comes from the shape's property and can then be overridden by the token count drawn
+// on it, and the map this replaced overwrote rather than duplicated.
+func (o *Options) add(key, value string) {
+	for i, kv := range *o {
+		if strings.HasPrefix(kv, key+" = ") {
+			(*o)[i] = key + " = " + value
+			return
+		}
 	}
-	return strings.Join(s, ", ")
+	*o = append(*o, key+" = "+value)
 }
+
+func (o Options) toString() string { return strings.Join(o, ", ") }
 
 type PetriParser struct{}
 
@@ -192,6 +204,24 @@ func dist(x MxElement, y MxElement) float64 {
 	}
 }
 
+// sorted is the elements of one of the id-keyed maps, in a fixed order: by label, then
+// by the diagram's own id. Ranging over the map put the declarations in a different
+// order on every run, so the same diagram produced a different .spn each time and the
+// generated file could not be kept beside the diagram.
+func sorted(m map[string]MxElement, label func(MxElement) string) []MxElement {
+	out := make([]MxElement, 0, len(m))
+	for _, x := range m {
+		out = append(out, x)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if li, lj := label(out[i]), label(out[j]); li != lj {
+			return li < lj
+		}
+		return out[i].Id < out[j].Id
+	})
+	return out
+}
+
 func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, pre, post []MxElement) {
 	// options
 	optionlist := map[string][]string{
@@ -211,10 +241,18 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 		fmt.Fprintln(w, toText(x.Value))
 	}
 
+	nodelabel := func(x MxElement) string { return x.Properties["label"] }
+	arclabel := func(x MxElement) string {
+		return nodes[x.Properties["source"]].Properties["label"] + " " +
+			nodes[x.Properties["target"]].Properties["label"]
+	}
+	sortedNodes := sorted(nodes, nodelabel)
+	sortedArcs := sorted(arcs, arclabel)
+
 	// place
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// place")
-	for _, x := range nodes {
+	for _, x := range sortedNodes {
 		if x.Type == "place" {
 			// make label
 			label := x.Properties["label"]
@@ -222,11 +260,11 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 			options := Options{}
 			for _, k := range optionlist[x.Type] {
 				if x.Properties[k] != "" {
-					options[k] = x.Properties[k]
+					options.add(k, x.Properties[k])
 				}
 			}
 			if x.Value != "" {
-				options["init"] = x.Value
+				options.add("init", x.Value)
 			}
 			// write
 			if len(options) == 0 {
@@ -240,7 +278,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 	// trans
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// trans")
-	for _, x := range nodes {
+	for _, x := range sortedNodes {
 		if x.Type == "imm" {
 			// make label
 			label := x.Properties["label"]
@@ -248,7 +286,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 			options := Options{}
 			for _, k := range optionlist[x.Type] {
 				if x.Properties[k] != "" {
-					options[k] = x.Properties[k]
+					options.add(k, x.Properties[k])
 				}
 			}
 			// write
@@ -267,7 +305,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 			options := Options{}
 			for _, k := range optionlist[x.Type] {
 				if x.Properties[k] != "" {
-					options[k] = x.Properties[k]
+					options.add(k, x.Properties[k])
 				}
 			}
 			// write
@@ -286,7 +324,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 			options := Options{}
 			for _, k := range optionlist[x.Type] {
 				if x.Properties[k] != "" {
-					options[k] = x.Properties[k]
+					options.add(k, x.Properties[k])
 				}
 			}
 			// write
@@ -301,7 +339,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 	// arc
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "// arc")
-	for _, x := range arcs {
+	for _, x := range sortedArcs {
 		switch {
 		case x.Type == "arc":
 			// make labels
@@ -311,7 +349,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 			options := Options{}
 			for _, k := range optionlist[x.Type] {
 				if x.Properties[k] != "" {
-					options[k] = x.Properties[k]
+					options.add(k, x.Properties[k])
 				}
 			}
 			// write
@@ -328,7 +366,7 @@ func write(w io.Writer, nodes map[string]MxElement, arcs map[string]MxElement, p
 			options := Options{}
 			for _, k := range optionlist[x.Type] {
 				if x.Properties[k] != "" {
-					options[k] = x.Properties[k]
+					options.add(k, x.Properties[k])
 				}
 			}
 			// write

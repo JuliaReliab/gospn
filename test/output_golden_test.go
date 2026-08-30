@@ -17,6 +17,7 @@ import (
 	"github.com/okamumu/gospn/pkg/analysis"
 	"github.com/okamumu/gospn/pkg/jsonout"
 	"github.com/okamumu/gospn/pkg/matout"
+	"github.com/okamumu/gospn/pkg/mxgraph"
 	"github.com/okamumu/gospn/pkg/npzout"
 	"github.com/okamumu/gospn/pkg/parser"
 	"github.com/okamumu/gospn/pkg/petrinet"
@@ -101,6 +102,49 @@ func TestMarkResultJSONGolden(t *testing.T) {
 				t.Fatalf("%v (run `go test ./test -update` to create it)", err)
 			}
 			if !bytes.Equal(want, buf.Bytes()) {
+				t.Errorf("%s differs from the golden; rerun with -update to see the diff in git", path)
+			}
+		})
+	}
+}
+
+// The diagram-to-definition conversion has its own golden: `gospn gen` used to write the
+// declarations in map order, so the same diagram gave a different file on every run and
+// the generated .spn could not be kept beside the diagram it came from.
+func TestGenGolden(t *testing.T) {
+	for _, file := range []string{"data/test.drawio", "data/xmltest2.xml"} {
+		file := file
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			gen := func() []byte {
+				b, err := os.ReadFile(file)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var p mxgraph.PetriParser
+				out, err := p.ParseXML(b)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return out
+			}
+			got := gen()
+			if again := gen(); !bytes.Equal(got, again) {
+				t.Error("two conversions of the same diagram differ")
+			}
+
+			path := filepath.Join("data", "golden", filepath.Base(file)+".spn")
+			if *update {
+				if err := os.WriteFile(path, got, 0644); err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("wrote %s", path)
+				return
+			}
+			want, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("%v (run `go test ./test -update` to create it)", err)
+			}
+			if !bytes.Equal(want, got) {
 				t.Errorf("%s differs from the golden; rerun with -update to see the diff in git", path)
 			}
 		})
