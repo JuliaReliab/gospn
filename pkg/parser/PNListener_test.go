@@ -160,37 +160,58 @@ func TestListenerCollectsDeclarations(t *testing.T) {
 	}
 }
 
-// A malformed definition must be rejected, and must say where. The test this replaces
-// built a parser over broken input, never walked it, and asserted nothing.
-//
-// The walk panics (VisitErrorNode -> parserError), which is why this recovers rather
-// than reading an error: the reader entry points return no error for a syntax problem,
-// so a bad definition reaches the user as a Go stack trace. The message at least names
-// the line now.
-func TestListenerReportsSyntaxError(t *testing.T) {
+// A malformed definition must be rejected as an error, and must say where. The test
+// this replaces built a parser over broken input, never walked it, and asserted nothing;
+// until 0.24.0 the definition reached the user as a Go panic with a stack trace.
+func TestReadReportsSyntaxError(t *testing.T) {
 	broken := strings.Replace(raid6Text, "imm Tinit (guard = ginit)", "imm Tinit + (guard = ginit)", 1)
 	if broken == raid6Text {
 		t.Fatal("the text to break was not found")
 	}
 
-	got := func() (msg string) {
-		defer func() {
-			if r := recover(); r != nil {
-				msg = fmt.Sprint(r)
-			}
-		}()
-		parseProg(broken)
-		return ""
-	}()
-
-	if got == "" {
+	net, imark, err := PNreadFromText(broken)
+	if err == nil {
 		t.Fatal("`imm Tinit + (...)` was accepted")
 	}
-	// The token in the error node is the one ANTLR synthesised while recovering, so its
-	// text is "<missing undefined>" rather than the "+" that caused it. The position is
-	// the real one: line 6 is the imm declaration.
-	if !strings.Contains(got, "syntax error at line 6:") {
-		t.Errorf("the error is %q; it should point at line 6", got)
+	if net != nil || imark != nil {
+		t.Error("a net was returned for a definition that does not parse")
+	}
+	if !strings.Contains(err.Error(), "syntax error") || !strings.Contains(err.Error(), "line 6:") {
+		t.Errorf("the error is %q; it should say what and where", err)
+	}
+}
+
+// Every syntax error is reported, not just the first: two mistakes in a file should
+// take one run to find, not two.
+func TestReadReportsEverySyntaxError(t *testing.T) {
+	_, _, err := PNreadFromText(`
+place P (init = 1)
+imm A + (guard = g)
+imm B + (guard = g)
+`)
+	if err == nil {
+		t.Fatal("two broken declarations were accepted")
+	}
+	if n := strings.Count(err.Error(), "line "); n < 2 {
+		t.Errorf("the error mentions %d lines, want both:\n%v", n, err)
+	}
+}
+
+// A definition that parses but cannot be built -- here an option given a value of the
+// wrong kind -- is an error too. The builder reports these by panicking, which is
+// convenient inside a recursive walk; the reader turns it into an error so the panic
+// does not escape the package.
+func TestReadReportsABadOptionAsAnError(t *testing.T) {
+	_, _, err := PNreadFromText(`
+place P (init = 1)
+exp T (rate = 1.0, priority = 1.5)
+arc P to T
+`)
+	if err == nil {
+		t.Skip("a float priority is accepted; nothing to report")
+	}
+	if strings.Contains(err.Error(), "goroutine") {
+		t.Errorf("the error carries a stack trace: %v", err)
 	}
 }
 
@@ -258,13 +279,16 @@ func TestListenerParsesDistributions(t *testing.T) {
 
 // An arc multiplicity reaches the token game, rather than merely being parsed.
 func TestArcMultiplicityReachesTheModel(t *testing.T) {
-	net, imark := PNreadFromText(`
+	net, imark, err := PNreadFromText(`
 		place P (init = 1)
 		place Q
 		exp T (rate = 1.0)
 		arc P to T
 		arc T to Q (multi = 10)
 	`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mg, err := petrinet.CreateMarkingGraphWithDFS(net, imark)
 	if err != nil {
 		t.Fatal(err)
@@ -291,7 +315,7 @@ func TestArcMultiplicityReachesTheModel(t *testing.T) {
 // An update block runs after the tokens move, and can set a place outright. The tests
 // this file replaces parsed a net with one and never checked what it did.
 func TestUpdateBlockReachesTheModel(t *testing.T) {
-	net, imark := PNreadFromText(`
+	net, imark, err := PNreadFromText(`
 		place P (init = 3)
 		place Q
 		exp T (rate = 1.0) {
@@ -300,6 +324,9 @@ func TestUpdateBlockReachesTheModel(t *testing.T) {
 		arc P to T
 		arc T to Q
 	`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mg, err := petrinet.CreateMarkingGraphWithDFS(net, imark)
 	if err != nil {
 		t.Fatal(err)

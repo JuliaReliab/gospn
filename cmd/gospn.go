@@ -78,7 +78,7 @@ func cmdview(args []string) {
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"
 	}
-	net, _ := parser.PNreadFromText(defs)
+	net, _ := readNet(defs)
 
 	if *outfile != "" {
 		file, err := os.Create(*outfile)
@@ -147,6 +147,18 @@ func buildRevision() string {
 		return rev + "-dirty"
 	}
 	return rev
+}
+
+// readNet parses a definition, or reports what is wrong with it and stops. A syntax
+// error and a mistyped option used to arrive as a Go panic with a stack trace; the
+// reader returns them as errors now, and this is where they become a message.
+func readNet(defs string) (*petrinet.Net, []petrinet.MarkInt) {
+	net, imark, err := parser.PNreadFromText(defs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	return net, imark
 }
 
 // checkNet refuses a net whose expressions do not evaluate. Without this the first
@@ -228,7 +240,7 @@ func cmdmark(args []string) {
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"
 	}
-	net, imark := parser.PNreadFromText(defs)
+	net, imark := readNet(defs)
 	checkNet(net, imark)
 
 	// A large search used to print "Create marking..." and then nothing at all until
@@ -336,7 +348,7 @@ func cmdsim(args []string) {
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"
 	}
-	net, imark := parser.PNreadFromText(defs)
+	net, imark := readNet(defs)
 	checkNet(net, imark)
 
 	var config petrinet.PNSimConfig
@@ -415,7 +427,7 @@ func cmdtest(args []string) {
 	if *params != "" {
 		defs = defs + "\n" + *params + "\n"
 	}
-	net, imark := parser.PNreadFromText(defs)
+	net, imark := readNet(defs)
 	checkNet(net, imark)
 
 	config := petrinet.PNSimConfig{

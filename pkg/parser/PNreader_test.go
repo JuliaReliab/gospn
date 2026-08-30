@@ -38,7 +38,10 @@ func TestPNreadFromFileMatchesFromText(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			net2, imark2 := PNreadFromText(string(text))
+			net2, imark2, err := PNreadFromText(string(text))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			if !equalStrings(net.PlaceLabels(), net2.PlaceLabels()) {
 				t.Errorf("places differ: %v vs %v", net.PlaceLabels(), net2.PlaceLabels())

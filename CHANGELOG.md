@@ -1,3 +1,32 @@
+# gospn 0.24.0
+
+- **A definition that does not parse is an error, not a panic.** A misplaced character
+  used to reach the user as `panic: Parser error. Stop to run` and a Go stack trace,
+  after 0.23.0 as a panic naming the line. It is now a message and exit status 1:
+
+  ```
+  $ gospn mark -i broken.spn -o out.mat
+  syntax error in the Petri net definition:
+    line 2:10: missing NEWLINE at '+'
+    line 2:19: mismatched input '=' expecting ')'
+  ```
+
+  **Every** syntax error is listed, so a file with two mistakes takes one run to fix
+  rather than two. ANTLR's default error listener wrote them to stderr and let the parse
+  look successful; they are collected now, and a tree with error nodes in it is never
+  walked -- building a net from a definition nobody wrote is worse than refusing.
+
+- **The same for anything else the builder rejects.** The AST builder and the compiler
+  report problems by panicking, which is convenient inside a recursive walk and useless
+  to a caller. The panic is caught at the reader and returned as an error, so it stays an
+  internal convention and stops at the package boundary. `place P (init = 1.5)` and
+  `arc P to Q` where `Q` is not a transition are one-line messages now.
+
+- **API: `PNreadFromText` returns an error**, matching `PNreadFromFile`, and both return
+  `nil` for the net when they fail. `PNreadFromFile` no longer returns an empty slice for
+  a missing file. The two used to be copies of the same five steps and are now one
+  function; a caller that ignored the second return value needs a third.
+
 # gospn 0.23.0
 
 - **The parser's tests assert something now.** `pkg/parser` had 51 `fmt.Println` calls

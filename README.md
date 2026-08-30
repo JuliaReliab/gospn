@@ -106,10 +106,20 @@ A net that hits the limit is either unbounded, or large enough that its state sp
 cannot be enumerated at all -- `example/k8s.spn` is the latter (53 places, several
 holding up to 1000 tokens) and is meant to be analysed with `gospn sim`.
 
-A net whose guards, rates or rewards name a variable that is not defined is rejected
-before the search runs, with every such expression listed. An undefined variable is not
-a parse error -- an unresolved name evaluates to itself as a string -- so this used to
-surface as a crash after the search had already finished.
+A definition that does not parse is rejected before anything else runs, with every
+syntax error listed and its position:
+
+```
+$ gospn mark -i broken.spn -o out.mat
+syntax error in the Petri net definition:
+  line 2:10: missing NEWLINE at '+'
+  line 2:19: mismatched input '=' expecting ')'
+```
+
+A net whose guards, rates or rewards name a variable that is not defined is rejected the
+same way. An undefined variable is not a parse error -- an unresolved name evaluates to
+itself as a string -- so this one is caught by evaluating every expression once at the
+initial marking, before the search.
 
 ### Monte Carlo simulation
 
