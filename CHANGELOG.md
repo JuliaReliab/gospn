@@ -1,3 +1,16 @@
+# gospn 0.28.0
+
+- **`MATLABBuffer`'s methods no longer borrow the names of interfaces they do not
+  implement.** `WriteString(string) *MATLABBuffer` had the name of `io.StringWriter`'s
+  method and a different signature -- it returns the buffer for chaining -- so a
+  `*MATLABBuffer` read as an `io.StringWriter` and was not one. `Write(interface{})`
+  did the same for `io.Writer`. They are `PutString` and `Put`, matching the `PutByte`
+  renamed for this reason in 0.11.1; `go vet` flags none of the three.
+
+  Every method on the type that returns the buffer is now named `PutX`, so nothing on it
+  reads as a standard interface it does not satisfy. Internal rename only: the `.mat`
+  files are byte-identical over every net in `example/`.
+
 # gospn 0.27.0
 
 - **An error says which node and which part of it.** 0.24.0 stopped the stack traces;

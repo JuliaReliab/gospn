@@ -82,21 +82,27 @@ func NewMATLABBuffer(buf MATLABWriter, endian binary.ByteOrder) *MATLABBuffer {
 	}
 }
 
-// The method to write a string to the buffer
-func (b *MATLABBuffer) WriteString(s string) *MATLABBuffer {
+// PutString writes a string to the buffer. It was WriteString, which is the name of
+// io.StringWriter's method with a different signature: this one returns the buffer for
+// chaining. A *MATLABBuffer read as an io.StringWriter and was not one. Same trap as the
+// WriteByte renamed to PutByte in 0.11.1, and `go vet` flags neither.
+func (b *MATLABBuffer) PutString(s string) *MATLABBuffer {
 	b.buf.WriteString(s)
 	return b
 }
 
-// The method to write data to the buffer. The data can be intXX, uintXX,
-// floatXX and their slices, where XX is the number of bits.
-func (b *MATLABBuffer) Write(data interface{}) *MATLABBuffer {
+// Put writes data to the buffer. The data can be intXX, uintXX, floatXX and their
+// slices, where XX is the number of bits.
+//
+// It was Write, and for the same reason: chaining is not io.Writer's signature. Every
+// method here that returns the buffer is now named PutX, so nothing on this type reads
+// as a standard interface it does not implement.
+func (b *MATLABBuffer) Put(data interface{}) *MATLABBuffer {
 	binary.Write(b.buf, b.endian, data)
 	return b
 }
 
-// The method to write a byte data. Named PutByte rather than WriteByte because
-// it returns the buffer for chaining, which is incompatible with io.ByteWriter.
+// PutByte writes one byte. Renamed from WriteByte in 0.11.1, for the reason above.
 func (b *MATLABBuffer) PutByte(data byte) *MATLABBuffer {
 	b.buf.WriteByte(data)
 	return b
@@ -182,15 +188,15 @@ func (h *MATLABHeader) ToBytes(buf *MATLABBuffer) *MATLABBuffer {
 	slen := 116
 	s := fmt.Sprintf("MATLAB %s MAT-file, Platform: %s, Created on: %s", h.level, h.platform, h.created.Format(time.ANSIC))
 	if len(s) > slen {
-		buf.WriteString(s[:slen])
+		buf.PutString(s[:slen])
 	} else {
-		buf.WriteString(s)
+		buf.PutString(s)
 		buf.Padding(slen - len(s)) // padding 0x00 up to slen bytes
 	}
-	buf.Write(uint32(0x0)) // subsys data offset
-	buf.Write(uint32(0x0)) // subsys data offset
-	buf.Write(h.version)
-	buf.WriteString(h.endianIndicator)
+	buf.Put(uint32(0x0)) // subsys data offset
+	buf.Put(uint32(0x0)) // subsys data offset
+	buf.Put(h.version)
+	buf.PutString(h.endianIndicator)
 	return buf
 }
 
@@ -214,11 +220,11 @@ func (h *MATLABDataElementHeader) byteLen() int {
 
 func (h *MATLABDataElementHeader) ToBytes(buf *MATLABBuffer) *MATLABBuffer {
 	if h.smallsize {
-		buf.Write(uint16(h.dataType))
-		buf.Write(uint16(h.numOfDataByte))
+		buf.Put(uint16(h.dataType))
+		buf.Put(uint16(h.numOfDataByte))
 	} else {
-		buf.Write(h.dataType)
-		buf.Write(h.numOfDataByte)
+		buf.Put(h.dataType)
+		buf.Put(h.numOfDataByte)
 	}
 	return buf
 }
@@ -282,7 +288,7 @@ func (d *MATLABString) byteLen() int {
 
 func (d *MATLABString) ToBytes(buf *MATLABBuffer) *MATLABBuffer {
 	d.header.ToBytes(buf)
-	buf.WriteString(d.data)
+	buf.PutString(d.data)
 	d.padding.ToBytes(buf)
 	return buf
 }
@@ -312,7 +318,7 @@ func (d *MATLABArray) byteLen() int {
 
 func (d *MATLABArray) ToBytes(buf *MATLABBuffer) *MATLABBuffer {
 	d.header.ToBytes(buf)
-	buf.Write(d.data)
+	buf.Put(d.data)
 	d.padding.ToBytes(buf)
 	return buf
 }
