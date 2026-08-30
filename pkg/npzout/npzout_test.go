@@ -147,3 +147,30 @@ func TestWriteRejectsDuplicateNames(t *testing.T) {
 		t.Fatal("duplicate name accepted")
 	}
 }
+
+// A 2-D dense element is stored column-major, so the header has to say so: NumPy and
+// Julia both read the buffer in the order fortran_order names, and getting it wrong
+// transposes the matrix silently.
+func TestDenseMatrixIsFortranOrdered(t *testing.T) {
+	r := &result.Result{}
+	r.AddDenseMatrix("path_state", 3, 2, []int32{0, 1, 2, 3, 4, 5})
+	r.AddDense("path_time", []float64{0, 1, 2})
+	z := write(t, r)
+
+	hdr, data := readMember(t, z, "path_state")
+	if !strings.Contains(hdr, "'fortran_order': True") {
+		t.Errorf("path_state: header is %q", hdr)
+	}
+	if !strings.Contains(hdr, "'shape': (3,2,)") {
+		t.Errorf("path_state: shape missing from %q", hdr)
+	}
+	if len(data) != 6*4 {
+		t.Errorf("path_state: %d bytes, want %d", len(data), 6*4)
+	}
+
+	// A vector is not column-major, and saying it is would be a lie a reader can see.
+	hdr, _ = readMember(t, z, "path_time")
+	if !strings.Contains(hdr, "'fortran_order': False") {
+		t.Errorf("path_time: header is %q", hdr)
+	}
+}

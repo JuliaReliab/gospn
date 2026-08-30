@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/okamumu/gospn/pkg/analysis"
 	"github.com/okamumu/gospn/pkg/jsonout"
 	"github.com/okamumu/gospn/pkg/matout"
 	"github.com/okamumu/gospn/pkg/mt"
@@ -249,33 +250,7 @@ func cmdmark(args []string) {
 	mg.Summary()
 
 	// Collect what was computed; writeResult decides what the file looks like.
-	res := &result.Result{}
-	expmat, immmat, genmat := mg.TransMatrix()
-	grouplabel := mg.GroupLabels()
-	grouptranslabel := mg.TransLabels()
-	// Go map iteration order is random, so every group of elements is sorted by name
-	// before the next one starts: the same net has to produce the same file twice.
-	for _, mats := range []map[petrinet.GroupTrans]*petrinet.CSC{expmat, immmat, genmat} {
-		first := res.Len()
-		for tr, m := range mats {
-			label := fmt.Sprintf("%s%s%s", grouplabel[tr.GetSrc()], grouplabel[tr.GetDest()], grouptranslabel[tr])
-			dim, nnz, rowind, colptr, val := m.Get()
-			res.AddSparse(label, dim, nnz, rowind, colptr, val)
-		}
-		res.SortFrom(first)
-	}
-	first := res.Len()
-	for g, v := range mg.InitVector() {
-		res.AddDense(fmt.Sprintf("init%s", grouplabel[g]), v)
-	}
-	res.SortFrom(first)
-	first = res.Len()
-	for rewardlabel, rv := range mg.RewardVector() {
-		for g, v := range rv {
-			res.AddDense(fmt.Sprintf("%s%s", rewardlabel, grouplabel[g]), v)
-		}
-	}
-	res.SortFrom(first)
+	res := analysis.MarkResult(mg)
 
 	// Until now only `gospn sim` recorded where its numbers came from. A marking graph
 	// on disk said nothing about which binary or which net produced it.
@@ -384,19 +359,17 @@ func cmdsim(args []string) {
 	fmt.Printf("computation time : %.4f (sec)\n", (end.Sub(start)).Seconds())
 	reportClamped(sim.ClampEvents())
 
-	res := &result.Result{}
-	for _, rwd := range []struct {
-		suffix string
-		values map[string][]float64
-	}{{"_irwd", irwd}, {"_crwd", crwd}, {"_lastrwd", lastrwd}} {
-		first := res.Len()
-		for rlabel, v := range rwd.values {
-			res.AddDense(rlabel+rwd.suffix, v)
-		}
-		res.SortFrom(first)
+	run := analysis.SimRun{
+		Irwd:        irwd,
+		Crwd:        crwd,
+		Lastrwd:     lastrwd,
+		ElapsedTime: elapsedtime,
+		Count:       count,
+		Config:      config,
+		Seed:        *seed,
+		Clamped:     len(sim.ClampEvents()),
 	}
-	res.AddDense("elapsedtime", elapsedtime)
-	res.AddDense("count", count)
+	res := analysis.SimResult(run)
 
 	// What the numbers came from. Without this the file is just vectors: the seed and
 	// the horizon are what a run needs to be repeated, and the version matters because
@@ -407,21 +380,15 @@ func cmdsim(args []string) {
 		Net:      *infile,
 		Command:  "sim",
 	}.AddTo(res)
-	res.AddDense("seed", []int64{*seed})
-	res.AddDense("simulations", []int32{int32(config.NumOfSimulation)})
-	res.AddDense("endingtime", []float64{config.EndingTime})
-	res.AddDense("firings", []int32{config.NumOfFiring})
-	res.AddDense("parallel", []int32{int32(config.Parallel)})
-
-	// Clamping is reported on stderr, but the fact that a run was not exact has to
-	// travel with the data as well -- whoever reads the file later did not see it.
-	res.AddDense("clamped", []int32{int32(len(sim.ClampEvents()))})
+	analysis.SimRunInfo(res, run)
 
 	writeResult(*outfile, *format, res)
 }
 
 func cmdtest(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
+	outfile := flag.String("o", "", "Name of the output file (empty writes nothing but the path on stdout)")
+	format := flag.String("format", "", formatUsage)
 	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
 	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
@@ -450,6 +417,26 @@ func cmdtest(args []string) {
 	for i, x := range path {
 		fmt.Println(i, x.String(net))
 	}
+
+	// The path went to stdout and nowhere else, so this was the one subcommand whose
+	// output nothing could read back. Writing a file stays opt-in: -o was not a flag
+	// here before, and the printed path is what existing use depends on.
+	if *outfile == "" {
+		return
+	}
+	steps := make([]analysis.PathStep, len(path))
+	for i, x := range path {
+		steps[i] = analysis.PathStep{Time: x.Time(), Mark: x.Mark(), Trans: x.TransLabel()}
+	}
+	res := analysis.PathResult(net, steps)
+	result.Provenance{
+		Version:  version,
+		Revision: buildRevision(),
+		Net:      *infile,
+		Command:  "test",
+	}.AddTo(res)
+	res.AddDense("seed", []int64{*seed})
+	writeResult(*outfile, *format, res)
 }
 
 func cmdgen(args []string) {

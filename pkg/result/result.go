@@ -43,6 +43,11 @@ type Element struct {
 	// Dense only: []float64, []int32 or []int64.
 	Values interface{}
 
+	// Fortran says Values is column-major. It is set for the 2-D dense elements and
+	// is what MATLAB has always assumed; NumPy has to be told, so the writers need
+	// to know rather than guess from Dims.
+	Fortran bool
+
 	// Text only.
 	Text string
 }
@@ -73,6 +78,22 @@ func (r *Result) AddDense(name string, values interface{}) {
 	}
 	r.Elements = append(r.Elements, Element{
 		Name: name, Kind: KindDense, Dims: []int32{int32(n)}, Values: values,
+	})
+}
+
+// AddDenseMatrix appends a rows-by-cols dense matrix. values is column-major, the
+// order MATLAB stores in and the order CreateMATLABMatrix has always been handed.
+func (r *Result) AddDenseMatrix(name string, rows, cols int, values interface{}) {
+	n, err := valuesLen(values)
+	if err != nil {
+		panic(fmt.Sprintf("result: %s: %v", name, err))
+	}
+	if n != rows*cols {
+		panic(fmt.Sprintf("result: %s: %d values for a %dx%d matrix", name, n, rows, cols))
+	}
+	r.Elements = append(r.Elements, Element{
+		Name: name, Kind: KindDense, Dims: []int32{int32(rows), int32(cols)},
+		Values: values, Fortran: true,
 	})
 }
 

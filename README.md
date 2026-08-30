@@ -149,9 +149,14 @@ extension is written as `mat`, so every existing invocation is unchanged.
 MATLAB v7.3 is deliberately not offered: it is HDF5, which has no usable pure-Go
 implementation, and cgo would break the cross-compiled release builds.
 
-In an `.npz`, a dense vector and a string are each one member under their own name (a
-string is a 0-dimensional unicode array, so `np.load` gives back a plain `str`). A sparse
-matrix `M` is four members, holding CSC with a 0-origin:
+In an `.npz`, a dense array and a string are each one member under their own name. A
+string is stored as its UTF-8 bytes in a `uint8` array -- `z["net"].tobytes().decode()`
+in Python, `String(z["net"])` in Julia. NumPy's own `<U` dtype would be nicer in Python
+but NPZ.jl cannot parse it and fails the *whole* archive, not just that member. A 2-D
+dense array (`path_state`, below) is column-major, and the member says so with
+`fortran_order: True`, so both readers give back the matrix the right way round.
+
+A sparse matrix `M` is four members, holding CSC with a 0-origin:
 
 ```python
 import numpy as np, scipy.sparse
@@ -177,13 +182,20 @@ run.
 
 Elements are sorted by name within each group, so the same net produces the same file
 twice -- Go map iteration order is random, and before this the order varied per run.
-Both subcommands also record `gospn_version`, `gospn_revision`, `gospn_command` and
-`net`; `gospn mark` used to record nothing at all about the run that produced it.
+All three subcommands that write a file also record `gospn_version`, `gospn_revision`,
+`gospn_command` and `net`.
+
+### What gospn does not do
+
+gospn stops at the matrices. Solving them -- steady state, transient, expected rewards --
+is left to a numerical library: [NMarkov.jl](https://github.com/JuliaReliab/NMarkov.jl)
+in Julia, `scipy.sparse.linalg` in Python, MATLAB itself. That is why the output formats
+matter more here than a solver would.
 
 ### Monte Carlo simulation for one path
 
 ```sh
-gospn test [-i <infile>] [-s <int>] [-t <value>] [-n <int>] [-pre <string>] [-post <string>]
+gospn test [-i <infile>] [-o <outfile>] [-format <mat|npz|json>] [-s <int>] [-t <value>] [-n <int>] [-pre <string>] [-post <string>]
 ```
 
 Simulate one path for a given Petrinet. For example, this is used for a testing of Petrinet definition.
@@ -191,7 +203,9 @@ The option `-s` is a seed of random number generator. The option `-t` indicates 
 elapsed time. The option `-n` indicates the stop condition based on the number of firrings.
 The option `-pre` is to put some additional defintion like parameters to the beginning of Petrinet definition.
 The option `-post` is to put some additional defintion like parameters to the end of Petrinet definition.
-This mode just displays a path to stdout.
+The path is printed to stdout. With `-o` it is also written as a result file, holding
+`place` (the place order the marking columns are in), `path_time`, `path_trans` and
+`path_state`, a firings-by-places matrix of token counts.
 
 ## Definition of Petrinet
 

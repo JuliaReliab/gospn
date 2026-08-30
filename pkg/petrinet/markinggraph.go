@@ -430,7 +430,10 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 		sum[e.i] += e.val
 	}
 	// log.Print("before ", elems)
-	sort.Slice(elems, func(i, j int) bool {
+	// Stable: entries with the same (i,j) are summed below in this order, and a
+	// float sum depends on it. sort.Slice left the last ULP of the diagonal varying
+	// from run to run on example/spnp_example5.spn.
+	sort.SliceStable(elems, func(i, j int) bool {
 		if elems[i].j == elems[j].j {
 			return elems[i].i < elems[j].i
 		} else {
@@ -484,7 +487,10 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 	immmats := make(map[GroupTrans]*CSC)
 	expmats := make(map[GroupTrans]*CSC)
 	genmats := make(map[GroupTrans]*CSC)
-	for gtr, _ := range mg.groupTransToLink {
+	// grouplinks holds exactly the keys of groupTransToLink, in the order the links
+	// were found. Ranging over the map instead made the order of the `expsums[src][i] +=`
+	// accumulations vary per run, and with it the last ULP of the generator diagonal.
+	for _, gtr := range mg.grouplinks {
 		src := gtr.src
 		switch gtr.transtype {
 		case TransIMM:
@@ -517,7 +523,10 @@ func (mg *MarkingGraph) TransMatrix() (map[GroupTrans]*CSC, map[GroupTrans]*CSC,
 		}
 	}
 	// group Gx should have GxGxE even if there is no EXP trans
-	for g, _ := range expgengroups {
+	for _, g := range mg.groups {
+		if _, ok := expgengroups[g]; !ok {
+			continue
+		}
 		gtr := GroupTrans{
 			src:       g,
 			dest:      g,

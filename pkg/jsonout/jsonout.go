@@ -30,6 +30,7 @@ type element struct {
 	NNZ    int         `json:"nnz,omitempty"`
 	RowInd []int       `json:"rowind,omitempty"`
 	ColPtr []int       `json:"colptr,omitempty"`
+	Order  string      `json:"order,omitempty"`
 	Values interface{} `json:"values,omitempty"`
 	Text   string      `json:"text,omitempty"`
 }
@@ -56,8 +57,14 @@ func Write(w io.Writer, r *result.Result) error {
 			if err != nil {
 				return fmt.Errorf("%s: %v", e.Name, err)
 			}
+			// "F" says the values are column-major, as MATLAB and NumPy's
+			// fortran_order mean it. Absent means the element is a vector.
+			order := ""
+			if e.Fortran {
+				order = "F"
+			}
 			doc.Elements = append(doc.Elements, element{
-				Name: e.Name, Kind: "dense", Dims: e.Dims, DType: dt, Values: e.Values,
+				Name: e.Name, Kind: "dense", Dims: e.Dims, DType: dt, Order: order, Values: e.Values,
 			})
 		case result.KindText:
 			doc.Elements = append(doc.Elements, element{

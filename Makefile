@@ -1,4 +1,4 @@
-GOSPN_VERSION = 0.18.0
+GOSPN_VERSION = 0.19.0
 GOSPN_LDFLAGS = -X main.version=$(GOSPN_VERSION)
 
 deps:
@@ -9,7 +9,34 @@ build: deps
 	mkdir -p bin
 	go build -ldflags "$(GOSPN_LDFLAGS)" -o bin/gospn cmd/gospn.go
 
-test: test_matout test_petrinet test_parser test_mxgraph
+# The test/ directory exists, so without this `make test` says "up to date".
+.PHONY: test test_e2e test_result test_jsonout test_npzout test_analysis test_mt \
+	test_matout test_petrinet test_parser test_mxgraph test_benchmark
+
+# Everything, which is what CI runs. `make test` used to name four pkg/ directories by
+# hand, so the packages added in 0.18.0 and the golden tests in test/ were not in it at
+# all: a passing `make test` meant less than it looked. The per-package targets below
+# are still here for running one suite verbosely.
+test:
+	go test ./...
+
+test_e2e:
+	go test -v ./test/
+
+test_result:
+	cd pkg/result/ && go test -v -cover
+
+test_jsonout:
+	cd pkg/jsonout/ && go test -v -cover
+
+test_npzout:
+	cd pkg/npzout/ && go test -v -cover
+
+test_analysis:
+	cd pkg/analysis/ && go test -v -cover
+
+test_mt:
+	cd pkg/mt/ && go test -v -cover
 
 test_matout:
 	cd pkg/matout/ && go test -v -cover
