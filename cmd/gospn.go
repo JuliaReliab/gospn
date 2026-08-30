@@ -36,6 +36,11 @@ commands: (command help: gospn command -h)
 }
 
 func main() {
+	// `gospn` on its own used to panic with an index-out-of-range and a stack trace.
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
 	mode := os.Args[1]
 	args := os.Args[2:]
 	switch mode {
@@ -52,7 +57,9 @@ func main() {
 	case "help":
 		usage()
 	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", mode)
 		usage()
+		os.Exit(2)
 	}
 }
 
@@ -179,18 +186,26 @@ const formatUsage = "Output format: mat (MATLAB v5), npz (NumPy) or json. Empty 
 // extension of the output file decides, so `-o out.npz` needs no second flag. The
 // default stays mat, which is what every existing invocation gets.
 func resolveFormat(format, outfile string) string {
-	if format == "" {
-		format = strings.TrimPrefix(strings.ToLower(filepath.Ext(outfile)), ".")
+	// An explicit -format is taken at its word: naming a format that does not exist is
+	// a mistake worth stopping for. An extension is a guess, so an unrecognised one
+	// falls back to mat rather than refusing to write `-o result.out` -- which is what
+	// the README has always said, and what this did not do.
+	if format != "" {
+		switch format {
+		case "mat", "npz", "json":
+			return format
+		default:
+			fmt.Fprintf(os.Stderr, "unknown output format %q (want mat, npz or json)\n", format)
+			os.Exit(1)
+		}
 	}
-	switch format {
-	case "mat", "npz", "json":
-		return format
-	case "":
-		return "mat"
+	switch strings.TrimPrefix(strings.ToLower(filepath.Ext(outfile)), ".") {
+	case "npz":
+		return "npz"
+	case "json":
+		return "json"
 	default:
-		fmt.Fprintf(os.Stderr, "unknown output format %q (want mat, npz or json)\n", format)
-		os.Exit(1)
-		return ""
+		return "mat"
 	}
 }
 

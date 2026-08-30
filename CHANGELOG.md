@@ -1,3 +1,23 @@
+# gospn 0.26.0
+
+- **The command layer has tests.** `cmd/gospn.go` was at 0.0% coverage: every flag, the
+  format resolution, the exit statuses and the messages a bad definition produces were
+  verified by hand, if at all -- including everything 0.21.0 and 0.24.0 changed.
+  `test/cli_test.go` builds the binary once and runs it: the five subcommands, `-format`
+  against `-o`'s extension, reading the definition from standard input, the state limit,
+  and each way a definition can be rejected (checking, among other things, that no
+  message carries a Go stack trace).
+
+- **Fixed: `-o result.out` was refused.** The README has said since 0.18.0 that a name
+  with no useful extension is written as `mat`, but only an *absent* extension fell back;
+  an unrecognised one was an error. An explicit `-format` is still taken at its word --
+  naming a format that does not exist is worth stopping for -- while an extension is a
+  guess and now falls back.
+
+- **Fixed: `gospn` with no arguments panicked** with an index-out-of-range and a stack
+  trace. It prints the usage and exits 2, and an unknown command says which one it did
+  not recognise.
+
 # gospn 0.25.0
 
 - **`gospn mark -t` is tested.** It runs a second, separate search (`dfstangible.go`)
