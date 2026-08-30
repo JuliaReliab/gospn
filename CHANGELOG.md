@@ -1,3 +1,39 @@
+# gospn 0.31.0
+
+- **The memory benchmark can answer where the memory goes.** `BenchmarkMarkingGraphMemory`
+  reported two totals and nothing about their composition, and `go test -memprofile`
+  writes its profile after the benchmark returns, when the graph is already garbage and
+  the profile is empty -- so every attempt to see what the search retains needed a
+  throwaway program. It now writes a heap profile **while the graph is alive** when
+  `GOSPN_HEAPPROF` names a directory.
+
+  Two more changes to it: a synthetic `wide_32places` net (16 independent two-place
+  subsystems: 32 places, 65,536 markings), because anything whose cost is *per place* is
+  invisible in a comparison that only varies the state count; and the peak metric is the
+  heap high-water mark (`HeapSys`) rather than `HeapAlloc` sampled after the search,
+  which depended on where the collector last ran and varied from 742 to 1353 B/state
+  between runs of the same build -- more than the effects being measured.
+
+  |  | places | states | retained | peak |
+  |---|---|---|---|---|
+  | `iaas_n3` | 17 | 25,652 | 410 B/state | 815 B/state |
+  | `iaas_n4` | 17 | 176,487 | 428 B/state | 974 B/state |
+  | `iaas_n5` | 17 | 910,731 | 407 B/state | 1031 B/state |
+  | `wide_32places` | 32 | 65,536 | 1247 B/state | 3518 B/state |
+
+- **Recorded, not changed: the intern key is not a retained copy of the marking.** The
+  note carried since 0.21.0 said `MarkGenerator`'s `map[string]*Mark` key costs a second
+  copy of every marking, 8 bytes per place. It does not: `MarkingGraph` does not hold the
+  generator, so **the whole intern map dies with the search**. Widening the key to 32
+  bytes per place -- four times the marking itself -- moves the retained heap by
+  **0 bytes**, on the nose, and the retained profile is accounted for by five lines that
+  do not include it.
+
+  It does cost *peak*, and there in proportion to its size: halving the key width takes
+  `iaas_n5` from 944 to 866 B/state, **-8%**. That is real but small for a change that
+  needs an overflow fallback, and it does nothing for the retained figure. Left alone,
+  with the numbers here so the next person does not have to measure it again.
+
 # gospn 0.30.0
 
 - **The random number generator is checked against the reference implementation.**
