@@ -1,0 +1,359 @@
+{
+  "format": "gospn-result",
+  "version": 1,
+  "elements": [
+    {
+      "name": "G0A0E",
+      "kind": "sparse",
+      "dims": [
+        6,
+        1
+      ],
+      "dtype": "float64",
+      "nnz": 2,
+      "rowind": [
+        3,
+        4
+      ],
+      "colptr": [
+        0,
+        2
+      ],
+      "values": [
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "name": "G0G0E",
+      "kind": "sparse",
+      "dims": [
+        6,
+        6
+      ],
+      "dtype": "float64",
+      "nnz": 9,
+      "rowind": [
+        0,
+        1,
+        2,
+        2,
+        3,
+        2,
+        4,
+        1,
+        5
+      ],
+      "colptr": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        7,
+        9
+      ],
+      "values": [
+        -1,
+        -7.3,
+        -0.5,
+        0.2,
+        -0.3,
+        0.3,
+        -0.2,
+        0.3,
+        -7
+      ]
+    },
+    {
+      "name": "G0I0E",
+      "kind": "sparse",
+      "dims": [
+        6,
+        3
+      ],
+      "dtype": "float64",
+      "nnz": 3,
+      "rowind": [
+        0,
+        1,
+        5
+      ],
+      "colptr": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "values": [
+        1,
+        7,
+        7
+      ]
+    },
+    {
+      "name": "I0A0I",
+      "kind": "sparse",
+      "dims": [
+        3,
+        1
+      ],
+      "dtype": "float64",
+      "nnz": 1,
+      "rowind": [
+        2
+      ],
+      "colptr": [
+        0,
+        1
+      ],
+      "values": [
+        0.05
+      ]
+    },
+    {
+      "name": "I0G0I",
+      "kind": "sparse",
+      "dims": [
+        3,
+        6
+      ],
+      "dtype": "float64",
+      "nnz": 5,
+      "rowind": [
+        0,
+        1,
+        0,
+        1,
+        2
+      ],
+      "colptr": [
+        0,
+        0,
+        2,
+        3,
+        4,
+        4,
+        5
+      ],
+      "values": [
+        0.6,
+        0.95,
+        0.4,
+        0.05,
+        0.95
+      ]
+    },
+    {
+      "name": "initA0",
+      "kind": "dense",
+      "dims": [
+        1
+      ],
+      "dtype": "float64",
+      "values": [
+        0
+      ]
+    },
+    {
+      "name": "initG0",
+      "kind": "dense",
+      "dims": [
+        6
+      ],
+      "dtype": "float64",
+      "values": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "initI0",
+      "kind": "dense",
+      "dims": [
+        3
+      ],
+      "dtype": "float64",
+      "values": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "rfuncA0",
+      "kind": "dense",
+      "dims": [
+        1
+      ],
+      "dtype": "float64",
+      "values": [
+        1
+      ]
+    },
+    {
+      "name": "rfuncG0",
+      "kind": "dense",
+      "dims": [
+        6
+      ],
+      "dtype": "float64",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "rfuncI0",
+      "kind": "dense",
+      "dims": [
+        3
+      ],
+      "dtype": "float64",
+      "values": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "place",
+      "kind": "text",
+      "text": "p0\np1\np2\np3\np4\np5\np6\np7\np8"
+    },
+    {
+      "name": "markA0",
+      "kind": "dense",
+      "dims": [
+        1,
+        9
+      ],
+      "dtype": "int32",
+      "order": "F",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "markG0",
+      "kind": "dense",
+      "dims": [
+        6,
+        9
+      ],
+      "dtype": "int32",
+      "order": "F",
+      "values": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "markI0",
+      "kind": "dense",
+      "dims": [
+        3,
+        9
+      ],
+      "dtype": "int32",
+      "order": "F",
+      "values": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}
