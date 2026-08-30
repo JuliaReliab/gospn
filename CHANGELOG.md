@@ -1,3 +1,46 @@
+# gospn 0.19.0
+
+- **Fixed: the marking-graph matrices were not reproducible.** `example/spnp_example5.spn`
+  produced two different `.mat` files over 20 runs of the same binary on the same net;
+  the generator diagonal differed in the last ULP. Two map-iteration orders were behind
+  it: `getTransMatrix` sorted the COO entries with `sort.Slice`, which is not stable, so
+  entries with the same `(i,j)` were summed in a different order each run, and
+  `TransMatrix` ranged over the `groupTransToLink` map, so the row-sum accumulations
+  did too. All 11 enumerable nets in `example/` now write the same bytes every run.
+  No value changed.
+
+- **`gospn test` can write a result file**, with `-o` and `-format`, in any of the three
+  formats. It printed its path to stdout and nowhere else, so it was the one subcommand
+  whose output nothing could read back. The file holds `place` (the place order the
+  marking columns are in), `path_time`, `path_trans` and `path_state` -- a
+  firings-by-places matrix of token counts -- plus provenance and the seed. Without
+  `-o` nothing changes.
+
+  `path_state` is the first 2-D dense element gospn writes. It is column-major, and the
+  `.npy` member says so (`fortran_order: True`): getting that wrong transposes the
+  matrix with no error anywhere. Checked against `np.load`, `scipy.io.loadmat` and
+  `NPZ.jl` on `example/raid6.spn`.
+
+- **The output layer is tested end to end.** `test/output_golden_test.go` pins the JSON
+  document of the marking graph of three small nets as files (`go test ./test -update`
+  regenerates them), checks that the document is byte-identical over repeated runs, and
+  writes one result in all three formats and reads each back, comparing exactly. The
+  cross-format agreement used to be checked by hand in scipy and NPZ.jl and did not
+  survive the session it was checked in. The JSON golden is the first output test where
+  a variable-name collision -- the class of bug that hid `irwd` for several releases --
+  shows up as a changed line in review.
+
+- **`make test` now runs `go test ./...`.** It named four `pkg/` directories by hand, so
+  the packages added in 0.18.0 and everything in `test/` were outside it: a passing
+  local `make test` meant less than it looked. The per-package targets are still there.
+
+- The code that turns an analysis into a result file moved out of `package main` into
+  `pkg/analysis`, so a test can reach it.
+
+- README: `.npz` strings are documented as the UTF-8 `uint8` arrays they have been since
+  0.18.0 (the text still described NumPy's `<U`), and a short section says that solving
+  the matrices is out of scope -- that is what NMarkov.jl and scipy are for.
+
 # gospn 0.18.0
 
 - `gospn mark` and `gospn sim` can write **NumPy `.npz`** and **JSON** as well as MATLAB
