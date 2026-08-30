@@ -271,6 +271,42 @@ func TestCLIRejectsABadDefinition(t *testing.T) {
 
 // A search that hits the state limit reports it and writes nothing: matrices from a
 // truncated marking graph look valid and are not.
+// `mark -m` and `-g` draw the marking graph and the group graph. They were the outputs
+// that changed on every run.
+func TestCLIMarkingGraphDotIsReproducible(t *testing.T) {
+	net := tinyNet(t)
+	read := func() (string, string) {
+		dir := t.TempDir()
+		m, g := filepath.Join(dir, "m.dot"), filepath.Join(dir, "g.dot")
+		r := run(t, "", "mark", "-i", net, "-m", m, "-g", g, "-o", filepath.Join(dir, "o.mat"))
+		if r.code != 0 {
+			t.Fatalf("exit %d: %s", r.code, r.out())
+		}
+		mb, err := os.ReadFile(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gb, err := os.ReadFile(g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(mb), string(gb)
+	}
+	m1, g1 := read()
+	m2, g2 := read()
+	if m1 != m2 {
+		t.Error("-m gave two different files for the same net")
+	}
+	if g1 != g2 {
+		t.Error("-g gave two different files for the same net")
+	}
+	for _, dot := range []string{m1, g1} {
+		if strings.Contains(dot, "0x") {
+			t.Errorf("a node is named by its address:\n%s", dot)
+		}
+	}
+}
+
 func TestCLIStateLimitIsReported(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "out.mat")
 	r := run(t, "", "mark", "-i", "../example/k8s.spn", "-maxstates", "500", "-o", out)
@@ -327,6 +363,20 @@ func TestCLIViewAndGen(t *testing.T) {
 	}
 	if !bytes.Contains(b, []byte("digraph")) {
 		t.Errorf("view did not write a dot file: %q", b[:min(40, len(b))])
+	}
+
+	// Drawing the same net twice gives the same file: the nodes are named by label and
+	// by group-and-index, not by address.
+	dot2 := filepath.Join(t.TempDir(), "net2.dot")
+	if r := run(t, "", "view", "-i", tinyNet(t), "-o", dot2); r.code != 0 {
+		t.Fatalf("view: exit %d: %s", r.code, r.out())
+	}
+	b2, err := os.ReadFile(dot2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, b2) {
+		t.Error("two drawings of the same net differ")
 	}
 
 	spn := filepath.Join(t.TempDir(), "from-diagram.spn")
