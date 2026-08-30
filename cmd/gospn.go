@@ -149,6 +149,16 @@ func buildRevision() string {
 	return rev
 }
 
+// checkNet refuses a net whose expressions do not evaluate. Without this the first
+// symptom of a typo like `rate = Tvreset.rate` is a Go stack trace after the whole
+// reachability search has run.
+func checkNet(net *petrinet.Net, imark []petrinet.MarkInt) {
+	if err := net.CheckExpressions(imark); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
+
 // formatUsage is the -format flag's help text, shared by the subcommands that write a
 // result file.
 const formatUsage = "Output format: mat (MATLAB v5), npz (NumPy) or json. Empty means guess from the -o extension, else mat"
@@ -219,6 +229,7 @@ func cmdmark(args []string) {
 		defs = defs + "\n" + *params + "\n"
 	}
 	net, imark := parser.PNreadFromText(defs)
+	checkNet(net, imark)
 
 	// A large search used to print "Create marking..." and then nothing at all until
 	// the process was killed. Report the state count as it grows, on stderr so the
@@ -326,6 +337,7 @@ func cmdsim(args []string) {
 		defs = defs + "\n" + *params + "\n"
 	}
 	net, imark := parser.PNreadFromText(defs)
+	checkNet(net, imark)
 
 	var config petrinet.PNSimConfig
 	var json []byte
@@ -404,6 +416,7 @@ func cmdtest(args []string) {
 		defs = defs + "\n" + *params + "\n"
 	}
 	net, imark := parser.PNreadFromText(defs)
+	checkNet(net, imark)
 
 	config := petrinet.PNSimConfig{
 		EndingTime:  *elapsedtime,

@@ -1,3 +1,64 @@
+# gospn 0.21.0
+
+- **The marking-graph search uses about a third less memory and is about a third
+  faster.** Two structures cost far more than what they held:
+
+  - the links existed **twice** -- `newMarkingGraph` copied every link into a
+    per-`GroupTrans` slice while the full list stayed on the graph for the DOT output.
+    They are now partitioned in place, each group getting a subslice of the one array.
+  - `markToGroup`, `markToInt` and the search's `markToGenvec` / `markToGroupType` were
+    four `map[*Mark]...` side tables, about 200 bytes per state of map overhead where
+    four fields on `Mark` cost 32 -- and every read was a hash lookup, which is where
+    the speed came from.
+
+  Measured on `example/iaas_cloud.spn` with `n = 5` (910,731 states, 3.1 M links):
+
+  |  | before | after |
+  |---|---|---|
+  | retained | 635 B/state (578 MB) | 407 B/state (371 MB) |
+  | peak | 1431 B/state | 921 B/state |
+  | time | 9.0 s | 5.1 s |
+
+  `n = 6` (3,811,992 states) completes either way in a 6 GB container: it needs about
+  3.5 GB now instead of about 5.5 GB, and 12 s instead of 18 s. It still needs an
+  explicit `-maxstates`. **This does not make `example/k8s.spn` enumerable** -- that net
+  has 53 places and several with `max = 1000`, and no amount of memory reaches it;
+  `gospn sim` is what it is for.
+
+  No value changed: the golden tests are untouched, and the link partition is a *stable*
+  sort for that reason -- `getTransMatrix` sums the links in this order and a float sum
+  depends on it.
+
+- **`BenchmarkMarkingGraphMemory`** (`test/`) reports the heap the graph retains and the
+  heap in use before collecting, over `iaas_cloud.spn` at n=3,4,5. `-benchmem` reports
+  neither, and the two differ by more than 2x: a net fails on the first number and is
+  analysed out of the second.
+
+- **Fixed: a net with an undefined variable ran the whole search and then panicked.**
+  `gospn mark -i example/cold_vm_reju.spn` died with a Go stack trace out of
+  `getTransMatrix`, on a net of 94 states. An undefined variable is not a parse error --
+  the expression language resolves variables lazily and an unresolved one evaluates to
+  its own name as a string -- and nothing asks a rate for a number until the matrices are
+  built. `Net.CheckExpressions` now evaluates every guard, rate, weight and reward once
+  at the initial marking, before anything else runs, and reports all of them together:
+
+  ```
+  the net does not evaluate:
+    transition Thfail: rate: ... (Thfai.rate) -- an undefined variable evaluates to its own name as a string
+    transition Tvrestart: rate: ... (Tvreset.rate) -- ...
+  ```
+
+  `mark`, `sim` and `test` run the check; `view` does not, since drawing a net should not
+  require its rates to evaluate.
+
+- **Fixed: two typos in `example/cold_vm_reju.spn`** -- `Thfai.rate` and `Tvreset.rate`,
+  for `Thfail.rate` and `Tvrestart.rate` (`Tvreset` is an IMM transition and has no
+  rate). The net analyses for the first time: 94 states, 49 tangible.
+
+- **`TestEveryExampleEvaluates`** parses and evaluates every net in `example/`. This was
+  the third bundled example to ship unevaluatable, and every one of them was found by a
+  person running the tool rather than by a test, because nothing ran the bundled nets.
+
 # gospn 0.20.0
 
 - **`gospn mark` writes the markings.** A result file carried the matrices and nothing

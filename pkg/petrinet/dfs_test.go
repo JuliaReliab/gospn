@@ -156,8 +156,6 @@ func TestVisitIMM(t *testing.T) {
 	dfs := new(dfs)
 	dfs.markGenerator = NewMarkGenerator(len(net.placelist))
 	dfs.novisited = NewMarkStack()
-	dfs.markToGenvec = make(map[*Mark]*GenVec)
-	dfs.markToGroupType = make(map[*Mark]GroupType)
 	dfs.links = make([]Link, 0)
 
 	m0 := dfs.markGenerator.genMark([]MarkInt{1, 1, 0})
@@ -189,8 +187,6 @@ func TestVisitIMM2(t *testing.T) {
 	dfs := new(dfs)
 	dfs.markGenerator = NewMarkGenerator(len(net.placelist))
 	dfs.novisited = NewMarkStack()
-	dfs.markToGenvec = make(map[*Mark]*GenVec)
-	dfs.markToGroupType = make(map[*Mark]GroupType)
 	dfs.links = make([]Link, 0)
 
 	m0 := dfs.markGenerator.genMark([]MarkInt{1, 1, 1})
@@ -230,8 +226,6 @@ func TestVisitGEN1(t *testing.T) {
 	dfs := new(dfs)
 	dfs.markGenerator = NewMarkGenerator(len(net.placelist))
 	dfs.novisited = NewMarkStack()
-	dfs.markToGenvec = make(map[*Mark]*GenVec)
-	dfs.markToGroupType = make(map[*Mark]GroupType)
 	dfs.links = make([]Link, 0)
 
 	m0 := dfs.markGenerator.genMark([]MarkInt{1, 1, 1})
@@ -273,8 +267,6 @@ func TestCreateMarking1(t *testing.T) {
 	dfs.genVecGenerator = NewGenVecGenerator(len(net.genlist))
 	dfs.visited = NewMarkSet()
 	dfs.novisited = NewMarkStack()
-	dfs.markToGenvec = make(map[*Mark]*GenVec)
-	dfs.markToGroupType = make(map[*Mark]GroupType)
 	dfs.links = make([]Link, 0)
 
 	m0 := dfs.markGenerator.genMark([]MarkInt{10, 1, 1})
@@ -282,7 +274,6 @@ func TestCreateMarking1(t *testing.T) {
 	dfs.novisited.push(m0)
 	dfs.createMarking(net)
 	fmt.Println(dfs.visited)
-	fmt.Println(dfs.markToGenvec)
 	fmt.Println(dfs.links)
 }
 
@@ -307,8 +298,6 @@ func TestCreateMarking2(t *testing.T) {
 	dfs.genVecGenerator = NewGenVecGenerator(len(net.genlist))
 	dfs.visited = NewMarkSet()
 	dfs.novisited = NewMarkStack()
-	dfs.markToGenvec = make(map[*Mark]*GenVec)
-	dfs.markToGroupType = make(map[*Mark]GroupType)
 	dfs.links = make([]Link, 0)
 
 	m0 := dfs.markGenerator.genMark([]MarkInt{10, 1, 1})
@@ -316,7 +305,6 @@ func TestCreateMarking2(t *testing.T) {
 	dfs.novisited.push(m0)
 	dfs.createMarking(net)
 	fmt.Println(dfs.visited)
-	fmt.Println(dfs.markToGenvec)
 	fmt.Println(dfs.links)
 }
 

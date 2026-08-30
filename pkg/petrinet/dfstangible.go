@@ -61,8 +61,6 @@ func (m *exitMark) union(child *exitMark) {
 // The following data are required to create an instance of marking graph
 //
 //	marks: A slice for all the visited marks
-//	markToGenvec: A map to indicate a GenVec that a given mark belongs to
-//	markToGroupType: A map to indicate a GroupType that a given mark belongs to
 //	links: A scile for links between all marks
 type dfstangible struct {
 	markGenerator   MarkGeneratorInterface
@@ -75,20 +73,17 @@ type dfstangible struct {
 	markPath        markStack
 	enabledIMMlist  []*ImmTrans
 	marks           []*Mark
-	markToGenvec    map[*Mark]*GenVec   // map from Mark to GenVec
-	markToGroupType map[*Mark]GroupType // map from Mark to Gtype
-	links           []Link              // links
-	clamps          clampRecorder       // places clamped while firing (see clamp.go)
-	firebuf         []MarkInt           // scratch destination reused by createNextMarking
-	counter         *stateCounter       // state limit and progress (see statelimit.go)
+	links           []Link        // links
+	clamps          clampRecorder // places clamped while firing (see clamp.go)
+	firebuf         []MarkInt     // scratch destination reused by createNextMarking
+	counter         *stateCounter // state limit and progress (see statelimit.go)
 }
 
 // The method to create a marking graph.
 // This is an interface for markinggraphGenerator.
-func (d *dfstangible) create(net *Net, imark []MarkInt, opts SearchOptions) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link, error) {
+func (d *dfstangible) create(net *Net, imark []MarkInt, opts SearchOptions) (*Mark, []*Mark, []Link, error) {
 	d.markGenerator = NewMarkGenerator(len(net.placelist))
 	d.genVecGenerator = NewGenVecGenerator(len(net.genlist))
-	d.markToGenvec = make(map[*Mark]*GenVec)
 	d.visited = NewMarkSet()
 	d.novisited = NewMarkStack()
 	d.novisitedIMM = NewMarkStack()
@@ -97,7 +92,6 @@ func (d *dfstangible) create(net *Net, imark []MarkInt, opts SearchOptions) (*Ma
 	d.markPath = NewMarkStack()
 	d.enabledIMMlist = make([]*ImmTrans, 0, len(net.immlist))
 	d.marks = make([]*Mark, 0)
-	d.markToGroupType = make(map[*Mark]GroupType)
 	d.links = make([]Link, 0)
 
 	d.firebuf = make([]MarkInt, len(net.placelist))
@@ -105,7 +99,7 @@ func (d *dfstangible) create(net *Net, imark []MarkInt, opts SearchOptions) (*Ma
 	m0 := d.markGenerator.genMark(imark)
 	d.novisited.push(m0)
 	if err := d.createMarking(net); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// post processing
@@ -138,7 +132,7 @@ func (d *dfstangible) create(net *Net, imark []MarkInt, opts SearchOptions) (*Ma
 		m0 = em.next
 		em = d.exitMarks[m0]
 	}
-	return m0, newmarks, d.markToGenvec, d.markToGroupType, newlinks, nil
+	return m0, newmarks, newlinks, nil
 }
 
 // The method to report the places that were clamped while firing.
@@ -150,24 +144,24 @@ func (d *dfstangible) clampEvents() []ClampSummary {
 // The method to regist a mark as a member of IMMgroup (There is one or more enabled IMM trans)
 func (d *dfstangible) addMarkAsImm(m *Mark, g *GenVec) {
 	d.marks = append(d.marks, m)
-	d.markToGenvec[m] = g
-	d.markToGroupType[m] = IMMGroup
+	m.genvec = g
+	m.gtype = IMMGroup
 	d.exitMarks[m] = newExitMark(m, g, initialized)
 }
 
 // The method to regist a mark as a member of GENgroup (There is no enabled IMM trans)
 func (d *dfstangible) addMarkAsGen(m *Mark, g *GenVec) {
 	d.marks = append(d.marks, m)
-	d.markToGenvec[m] = g
-	d.markToGroupType[m] = GENGroup
+	m.genvec = g
+	m.gtype = GENGroup
 	d.exitMarks[m] = newExitMark(m, g, novanishable)
 }
 
 // The method to regist a mark as a member of ABSgroup (There is no enabled trans)
 func (d *dfstangible) addMarkAsAbs(m *Mark, g *GenVec) {
 	d.marks = append(d.marks, m)
-	d.markToGenvec[m] = g
-	d.markToGroupType[m] = ABSGroup
+	m.genvec = g
+	m.gtype = ABSGroup
 	d.exitMarks[m] = newExitMark(m, g, novanishable)
 }
 

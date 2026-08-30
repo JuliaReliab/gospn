@@ -8,9 +8,25 @@ import (
 
 type MarkInt int
 
+// Mark is one interned marking. Beyond the token vector it carries what the search and
+// the marking graph know about it: these used to be four map[*Mark]... side tables, which
+// cost about 200 bytes per state in map overhead where four fields cost 32.
+//
+// That makes a Mark specific to the one search that produced it. Marks come from a
+// MarkGenerator, and a generator is created per search, so this holds -- but putting the
+// same *Mark into two marking graphs would now silently corrupt both.
 type Mark struct {
 	n         int
 	markSlice []MarkInt
+
+	// Set during the search.
+	genvec *GenVec
+	gtype  GroupType
+
+	// Set when the marking graph is assembled: the group this marking belongs to and
+	// its row index within that group.
+	group *Group
+	index int
 }
 
 func (x *Mark) toSlice() []MarkInt {

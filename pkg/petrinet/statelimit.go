@@ -15,10 +15,15 @@ import (
 // different machines, and reproducibility is worth more here than precision. The error
 // reports the memory actually used, so a limit can be chosen for a given machine.
 
-// DefaultMaxStates is the limit the search uses when none is given. Around 480 bytes
-// of retained heap per state was measured on spnp_example6.spn (8 places); a net with
-// more places costs proportionally more, so this is roughly 0.5-1.5 GB. Raise it with
-// `gospn mark -maxstates`, or pass 0 for no limit.
+// DefaultMaxStates is the limit the search uses when none is given.
+//
+// The cost per state depends on the net -- on iaas_cloud.spn (17 places, 3.4 links per
+// state) it is about 400 bytes retained and about 900 bytes at peak, so this limit is
+// roughly 1 GB of peak heap there. A net with more places or a higher branching factor
+// costs more. BenchmarkMarkingGraphMemory in test/ reports both numbers.
+//
+// Raise it with `gospn mark -maxstates`, or pass 0 for no limit. Enumerating
+// iaas_cloud.spn with n = 6 (3.8 million states, about 3.5 GB) needs that.
 const DefaultMaxStates = 1_000_000
 
 // DefaultProgressEvery is how many newly discovered states pass between progress
