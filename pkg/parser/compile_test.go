@@ -56,7 +56,10 @@ v = 7
 w = v
 vp = #p
 `
-			net, mark := PNreadFromText(text)
+			net, mark, err := PNreadFromText(text)
+			if err != nil {
+				t.Fatal(err)
+			}
 			tr, ok := net.GetTrans("t")
 			if !ok {
 				t.Fatal("transition t not found")
@@ -73,10 +76,12 @@ vp = #p
 // would pass while checking nothing about this package.
 func TestCompiledArithmeticIsCompiled(t *testing.T) {
 	CompileStatsReset()
-	PNreadFromText(`
+	if _, _, err := PNreadFromText(`
 place p (init = 3)
 exp t (guard = ((1/2) > 0.4) && #p >= 0, rate = #p * 2.0)
-`)
+`); err != nil {
+		t.Fatal(err)
+	}
 	if CompileStats.GuardCompiled != 1 || CompileStats.RateCompiled != 1 {
 		t.Errorf("expected the guard and the rate to compile, got %+v", CompileStats)
 	}
@@ -89,10 +94,12 @@ exp t (guard = ((1/2) > 0.4) && #p >= 0, rate = #p * 2.0)
 // falling back is supposed to preserve.
 func TestUncompilableFallsBack(t *testing.T) {
 	CompileStatsReset()
-	PNreadFromText(`
+	if _, _, err := PNreadFromText(`
 place p (init = 3)
 exp t (guard = undefined_variable == 1 && #p >= 0, rate = 1)
-`)
+`); err != nil {
+		t.Fatal(err)
+	}
 	if CompileStats.GuardFallback != 1 || CompileStats.GuardCompiled != 0 {
 		t.Errorf("expected the guard to fall back, got %+v", CompileStats)
 	}

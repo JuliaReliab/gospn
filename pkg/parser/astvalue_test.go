@@ -170,7 +170,7 @@ func TestASTValueMinusMixed(t *testing.T) {
 
 // A reward such as "reward r #P1 - #P2" evaluates as int minus int.
 func TestRewardSubtraction(t *testing.T) {
-	net, _ := PNreadFromText(`
+	net, _, err := PNreadFromText(`
 		place P1 (init = 5)
 		place P2 (init = 2)
 		exp T (rate = 1.0)
@@ -178,6 +178,9 @@ func TestRewardSubtraction(t *testing.T) {
 		arc T to P2
 		reward diff #P1 - #P2
 	`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rwd, ok := net.GetReward("diff")
 	if !ok {
 		t.Fatal("reward diff not found")

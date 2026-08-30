@@ -34,7 +34,10 @@ func iaasNet(tb testing.TB, n int) (*petrinet.Net, []petrinet.MarkInt) {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	net, imark := parser.PNreadFromText(fmt.Sprintf("%s\nn = %d\n", defs, n))
+	net, imark, err := parser.PNreadFromText(fmt.Sprintf("%s\nn = %d\n", defs, n))
+	if err != nil {
+		tb.Fatal(err)
+	}
 	return net, imark
 }
 
