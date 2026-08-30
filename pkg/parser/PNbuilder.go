@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"github.com/antlr/antlr4/runtime/Go/antlr"
 	"strconv"
 )
 
@@ -466,6 +467,13 @@ func (b *NetBuilder) buildUpdateBlock() {
 	logger.Printf("Put an update block")
 }
 
-func (b *NetBuilder) parserError() {
-	logger.Panic("Parser error. Stop to run")
+// parserError stops the walk when ANTLR has put an error node in the tree. It said only
+// "Parser error. Stop to run", which left the reader to find the bad line themselves;
+// the token knows where it is.
+func (b *NetBuilder) parserError(tok antlr.Token) {
+	if tok == nil {
+		logger.Panic("syntax error in the Petri net definition")
+	}
+	logger.Panicf("syntax error at line %d:%d, near %q",
+		tok.GetLine(), tok.GetColumn(), tok.GetText())
 }

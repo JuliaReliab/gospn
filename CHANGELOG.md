@@ -1,3 +1,30 @@
+# gospn 0.23.0
+
+- **The parser's tests assert something now.** `pkg/parser` had 51 `fmt.Println` calls
+  and, in two of its five test files, not one `t.Error`: a walk that produced complete
+  nonsense would still have passed. This is the gap that let the arithmetic bugs fixed
+  in 0.11.1 survive, and it has been carried in the notes since 2026-08-27.
+
+  Every test now checks a value. What they cover that nothing did before: operator
+  precedence in a parsed expression, that declarations reach the environment tagged and
+  in order, that an arc multiplicity and an update block reach the token game, that a
+  distribution reaches the model with its parameters, that `PNreadFromFile` and
+  `PNreadFromText` agree on all nine bundled nets, and that a missing file is an error.
+
+  Checked by mutation: reintroducing the 0.11.1 `minus`-is-`plus` bug fails 4 tests,
+  ignoring an error node fails 1, dropping an arc multiplicity fails 1. Statement
+  coverage of the package is 59.4%, against 59.0% for the printing tests it replaces --
+  which is the point: the old number came from walking nets and looking at nothing.
+
+- **Fixed: a syntax error said only `Parser error. Stop to run`.** It now names the
+  position: `syntax error at line 6:10, near "..."`. The definition still reaches the
+  user as a panic rather than an error -- the reader entry points return none -- but it
+  at least says where to look.
+
+- **Fixed: `parser.logger` was nil until a reader entry point ran**, so calling
+  `makeNet` or walking a parse tree directly dereferenced nil. It is initialised to a
+  discarding logger, which is what the entry points set anyway.
+
 # gospn 0.22.0
 
 - **An MRSPN result file now says what its general blocks mean.** A `P<k>` block is a

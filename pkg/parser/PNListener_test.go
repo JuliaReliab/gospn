@@ -1,256 +1,48 @@
 package parser
 
 import (
-	"bytes"
 	"fmt"
+	"sort"
+	"strings"
+	"testing"
+
 	"github.com/antlr/antlr4/runtime/Go/antlr"
 	"github.com/okamumu/gospn/pkg/petrinet"
-	"log"
-	"os"
-	"testing"
 )
 
-func TestPNListener1(t *testing.T) {
-	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	fmt.Println("test1")
-	is := antlr.NewInputStream("1 + 2 * 3")
-	lexer := NewJSPNLLexer(is)
+// These tests used to walk a parse tree and print the result, asserting nothing: a
+// change that broke the listener outright would still have passed them.
+
+// errorCollector replaces ANTLR's default listener, which writes to stderr and lets the
+// parse look successful. Without it nothing here can tell a syntax error from a clean
+// parse.
+type errorCollector struct {
+	*antlr.DefaultErrorListener
+	errs []string
+}
+
+func (c *errorCollector) SyntaxError(_ antlr.Recognizer, _ interface{}, line, col int, msg string, _ antlr.RecognitionException) {
+	c.errs = append(c.errs, fmt.Sprintf("%d:%d %s", line, col, msg))
+}
+
+// parseProg walks a whole definition and returns the listener and any syntax errors.
+// It panics on malformed input -- see TestListenerReportsSyntaxError.
+func parseProg(text string) (*PNListener, []string) {
+	c := &errorCollector{DefaultErrorListener: antlr.NewDefaultErrorListener()}
+	lexer := NewJSPNLLexer(antlr.NewInputStream(text))
+	lexer.RemoveErrorListeners()
+	lexer.AddErrorListener(c)
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 	p := NewJSPNLParser(stream)
-	antlr.ParseTreeWalkerDefault.Walk(NewPNListener(), p.Expression())
-}
-
-func TestPNListener2(t *testing.T) {
-	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	fmt.Println("test2")
-	is := antlr.NewInputStream(`
-/*
-  Example: RAID6
-  F. Machida, R. Xia and K.S. Trivedi,
-  Performability modeling for RAID storage systems by Markov regenerative process,
-  IEEE Transactions on Dependable and Secure Computing
-*/
-
-// HDD model
-
-place Pn (init = 6)
-place Pdf
-exp Tdfail (guard = gfail, rate = Tdfail_rate)
-gen Trebuild (guard = gfail) {
-	#Pn = 1
-}
-imm Tinit (guard = ginit)
-arc Pn to Tdfail
-arc Tdfail to Pdf
-arc Pdf to Trebuild
-arc Pdf to Tinit
-arc Trebuild to Pn
-arc Tinit to Pn
-
-// Reconstruction model
-
-place Po (init = 1)
-place Pr
-place Pc
-imm Tstart (guard = gstart)
-gen Trecon
-imm Tend (guard = gend)
-arc Po to Tstart
-arc Tstart to Pr
-arc Pr to Trecon
-arc Trecon to Pc
-arc Pc to Tend
-arc Tend to Po
-
-// rate and gurads
-
-Tdfail_rate = #Pn * lambda
-gfail = #Po == 1
-gstart = #Pdf > 2
-ginit = #Pc == 1
-gend = #Pdf == 0
-
-// params
-
-Trebuild.dist = exp(MTTR1)
-Trecon.dist = log(MTTR2)
-
-MTTF = 1.0e+6 // [hours]
-lambda = 1/MTTF
-MTTR1 = 2 // [hours]
-MTTR2 = 24 // [hours]
-
-reward r1 #Pc
-`)
-	lexer := NewJSPNLLexer(is)
-	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
-	p := NewJSPNLParser(stream)
-	antlr.ParseTreeWalkerDefault.Walk(NewPNListener(), p.Prog())
-}
-
-func TestPNListener3(t *testing.T) {
-	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	fmt.Println("test4")
-	is := antlr.NewInputStream(`
-/*
-  Example: RAID6
-  F. Machida, R. Xia and K.S. Trivedi,
-  Performability modeling for RAID storage systems by Markov regenerative process,
-  IEEE Transactions on Dependable and Secure Computing
-*/
-
-// HDD model
-
-place Pn (init = 6)
-place Pdf
-exp Tdfail (guard = gfail, rate = Tdfail_rate)
-gen Trebuild (guard = gfail) {
-	#Pn = 1
-}
-imm Tinit + (guard = ginit)
-arc Pn to Tdfail
-arc Tdfail to Pdf
-arc Pdf to Trebuild
-arc Pdf to Tinit
-arc Trebuild to Pn
-arc Tinit to Pn
-
-// Reconstruction model
-
-place Po (init = 1)
-place Pr
-place Pc
-imm Tstart (guard = gstart)
-gen Trecon
-imm Tend (guard = gend)
-arc Po to Tstart
-arc Tstart to Pr
-arc Pr to Trecon
-arc Trecon to Pc
-arc Pc to Tend
-arc Tend to Po
-
-// rate and gurads
-
-Tdfail_rate = #Pn * lambda
-gfail = #Po == 1
-gstart = #Pdf > 2
-ginit = #Pc == 1
-gend = #Pdf == 0
-
-// params
-
-Trebuild.dist = sqrt(MTTR1)
-Trecon.dist = max(MTTR2, 1)
-
-MTTF = 1.0e+6 // [hours]
-lambda = 1/MTTF
-MTTR1 = 2 // [hours]
-MTTR2 = 24 // [hours]
-
-reward r1 #Pc
-`)
-	lexer := NewJSPNLLexer(is)
-	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
-	NewJSPNLParser(stream)
-	// antlr.ParseTreeWalkerDefault.Walk(NewPNListener(), p.Prog())
-}
-
-func TestPNListener4(t *testing.T) {
-	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	fmt.Println("test4")
-	is := antlr.NewInputStream(`
-/*
-  Example: RAID6
-  F. Machida, R. Xia and K.S. Trivedi,
-  Performability modeling for RAID storage systems by Markov regenerative process,
-  IEEE Transactions on Dependable and Secure Computing
-*/
-
-// HDD model
-
-place Pn (init = 6)
-place Pdf
-exp Tdfail (guard = gfail, rate = Tdfail_rate)
-gen Trebuild (guard = gfail) {
-	#Pn = 1
-}
-imm Tinit (guard = ginit)
-arc Pn to Tdfail
-arc Tdfail to Pdf
-arc Pdf to Trebuild
-arc Pdf to Tinit
-arc Trebuild to Pn
-arc Tinit to Pn
-
-// Reconstruction model
-
-place Po (init = 1)
-place Pr
-place Pc
-imm Tstart (guard = gstart)
-gen Trecon
-imm Tend (guard = gend)
-arc Po to Tstart
-arc Tstart to Pr (multi = 10)
-arc Pr to Trecon
-arc Trecon to Pc
-arc Pc to Tend
-arc Tend to Po
-
-// rate and gurads
-
-Tdfail_rate = #Pn * lambda
-gfail = #Po == 1
-gstart = #Pdf > 2
-ginit = #Pc == 1
-gend = #Pdf == 0
-
-// params
-
-Trebuild.dist = exp(MTTR1)
-Trecon.dist = log(MTTR2)
-
-MTTF = 1.0e+6 // [hours]
-lambda = 1/MTTF
-MTTR1 = 2 // [hours]
-MTTR2 = 24 // [hours]
-
-reward r1 #Pc
-`)
-	lexer := NewJSPNLLexer(is)
-	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
-	p := NewJSPNLParser(stream)
+	p.RemoveErrorListeners()
+	p.AddErrorListener(c)
 	listener := NewPNListener()
 	antlr.ParseTreeWalkerDefault.Walk(listener, p.Prog())
-	net, initmark := makeNet(listener.builder.labels, listener.builder.env)
-	fmt.Println(net)
-	fmt.Println(initmark)
-
-	writer := bytes.NewBuffer(make([]byte, 0, 256))
-	net.ToPNDot(writer)
-	fmt.Println(writer.String())
-	// for key, value := range listener.builder.env {
-	// 	switch node := value.(type) {
-	// 	case *PNNode:
-	// 		fmt.Println(key, node)
-	// 	}
-	// }
+	return listener, c.errs
 }
 
-func TestPNListener5(t *testing.T) {
-	logger = log.New(os.Stdout, "[Hello] ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-	fmt.Println("test5")
-	is := antlr.NewInputStream(`
-/*
-  Example: RAID6
-  F. Machida, R. Xia and K.S. Trivedi,
-  Performability modeling for RAID storage systems by Markov regenerative process,
-  IEEE Transactions on Dependable and Secure Computing
-*/
-
-// HDD model
-
+// The net the printing tests used, minus the parts that were never checked.
+const raid6Text = `
 place Pn (init = 6)
 place Pdf
 exp Tdfail (guard = gfail, rate = Tdfail_rate)
@@ -262,8 +54,6 @@ arc Pdf to Trebuild
 arc Pdf to Tinit
 arc Trebuild to Pn
 arc Tinit to Pn
-
-// Reconstruction model
 
 place Po (init = 1)
 place Pr
@@ -278,39 +68,277 @@ arc Trecon to Pc
 arc Pc to Tend
 arc Tend to Po
 
-// rate and gurads
-
 Tdfail_rate = #Pn * lambda
 gfail = #Po == 1
 gstart = #Pdf > 2
 ginit = #Pc == 1
 gend = #Pdf == 0
 
-// params
-
 Trebuild.dist = expdist(MTTR1)
 Trecon.dist = unif(1.0, 2.0)
 
-MTTF = 1.0e+6 // [hours]
+MTTF = 1.0e+6
 lambda = 1/MTTF
-MTTR1 = 2 // [hours]
-MTTR2 = 24 // [hours]
+MTTR1 = 2
+MTTR2 = 24
 
 reward r1 #Pc
-`)
-	lexer := NewJSPNLLexer(is)
+`
+
+// An expression parses into an AST that evaluates -- and with the right precedence,
+// which is the one thing a walk that only prints could never show.
+func TestListenerParsesExpressionPrecedence(t *testing.T) {
+	lexer := NewJSPNLLexer(antlr.NewInputStream("1 + 2 * 3"))
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 	p := NewJSPNLParser(stream)
 	listener := NewPNListener()
-	antlr.ParseTreeWalkerDefault.Walk(listener, p.Prog())
+	antlr.ParseTreeWalkerDefault.Walk(listener, p.Expression())
+
+	if len(listener.builder.aststack) != 1 {
+		t.Fatalf("the walk left %d expressions on the stack, want 1", len(listener.builder.aststack))
+	}
+	res, err := listener.builder.aststack.pop().Eval(make(ASTEnv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := res.GetInt()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != ASTInt(7) {
+		t.Errorf("1 + 2 * 3 = %v, want 7 (times binds tighter)", v)
+	}
+}
+
+func TestListenerCollectsDeclarations(t *testing.T) {
+	listener, errs := parseProg(raid6Text)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected syntax errors: %v", errs)
+	}
+
+	// Every declaration reaches the environment, tagged with what it is.
+	for label, want := range map[string]string{
+		"Pn": "place", "Pdf": "place", "Po": "place", "Pr": "place", "Pc": "place",
+		"Tdfail": "exp", "Trebuild": "gen", "Trecon": "gen",
+		"Tinit": "imm", "Tstart": "imm", "Tend": "imm",
+		"r1": "reward",
+	} {
+		node, ok := listener.builder.env[label].(*PNNode)
+		if !ok {
+			t.Errorf("%s is not a node in the environment", label)
+			continue
+		}
+		if got := node.options["type"]; got != want {
+			t.Errorf("%s is a %v, want %v", label, got, want)
+		}
+	}
+
+	// labels is the declaration order, which makeNet depends on: it creates every
+	// place before any transition so that a guard may name a place declared later.
+	var places, trans []string
+	for _, label := range listener.builder.labels {
+		if node, ok := listener.builder.env[label].(*PNNode); ok {
+			switch node.options["type"] {
+			case "place":
+				places = append(places, label)
+			case "exp", "gen", "imm":
+				trans = append(trans, label)
+			}
+		}
+	}
+	if want := []string{"Pn", "Pdf", "Po", "Pr", "Pc"}; !equalStrings(places, want) {
+		t.Errorf("places %v, want %v in declaration order", places, want)
+	}
+	if len(trans) != 6 {
+		t.Errorf("%d transitions, want 6", len(trans))
+	}
+
+	// A parameter that is only assigned later is still in the environment, since
+	// variables are resolved when they are evaluated.
+	if _, ok := listener.builder.env["lambda"]; !ok {
+		t.Error("lambda is missing from the environment")
+	}
+}
+
+// A malformed definition must be rejected, and must say where. The test this replaces
+// built a parser over broken input, never walked it, and asserted nothing.
+//
+// The walk panics (VisitErrorNode -> parserError), which is why this recovers rather
+// than reading an error: the reader entry points return no error for a syntax problem,
+// so a bad definition reaches the user as a Go stack trace. The message at least names
+// the line now.
+func TestListenerReportsSyntaxError(t *testing.T) {
+	broken := strings.Replace(raid6Text, "imm Tinit (guard = ginit)", "imm Tinit + (guard = ginit)", 1)
+	if broken == raid6Text {
+		t.Fatal("the text to break was not found")
+	}
+
+	got := func() (msg string) {
+		defer func() {
+			if r := recover(); r != nil {
+				msg = fmt.Sprint(r)
+			}
+		}()
+		parseProg(broken)
+		return ""
+	}()
+
+	if got == "" {
+		t.Fatal("`imm Tinit + (...)` was accepted")
+	}
+	// The token in the error node is the one ANTLR synthesised while recovering, so its
+	// text is "<missing undefined>" rather than the "+" that caused it. The position is
+	// the real one: line 6 is the imm declaration.
+	if !strings.Contains(got, "syntax error at line 6:") {
+		t.Errorf("the error is %q; it should point at line 6", got)
+	}
+}
+
+// makeNet turns the declarations into a net: the places, the transitions and the
+// initial marking all come through.
+func TestListenerBuildsTheNet(t *testing.T) {
+	listener, errs := parseProg(raid6Text)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected syntax errors: %v", errs)
+	}
 	net, imark := makeNet(listener.builder.labels, listener.builder.env)
 
-	writer := bytes.NewBuffer(make([]byte, 0, 256))
-	net.ToPNDot(writer)
-	fmt.Println(writer.String())
+	for _, label := range []string{"Pn", "Pdf", "Po", "Pr", "Pc"} {
+		if _, ok := net.GetPlace(label); !ok {
+			t.Errorf("place %s is missing from the net", label)
+		}
+	}
+	for _, label := range []string{"Tdfail", "Trebuild", "Trecon", "Tinit", "Tstart", "Tend"} {
+		if _, ok := net.GetTrans(label); !ok {
+			t.Errorf("transition %s is missing from the net", label)
+		}
+	}
+	if _, ok := net.GetReward("r1"); !ok {
+		t.Error("reward r1 is missing from the net")
+	}
 
-	mg, _ := petrinet.CreateMarkingGraphWithDFS(net, imark)
-	writer2 := bytes.NewBuffer(make([]byte, 0, 256))
-	mg.ToMarkDotWithLabelAndGroup(writer2)
-	fmt.Println(writer2.String())
+	// Finalize sorts the places by label, so the marking is indexed in that order.
+	want := map[string]petrinet.MarkInt{"Pn": 6, "Po": 1, "Pc": 0, "Pdf": 0, "Pr": 0}
+	for i, label := range net.PlaceLabels() {
+		if imark[i] != want[label] {
+			t.Errorf("initial marking of %s is %d, want %d", label, imark[i], want[label])
+		}
+	}
+
+	// The net evaluates -- every guard, rate and reward resolves.
+	if err := net.CheckExpressions(imark); err != nil {
+		t.Error(err)
+	}
+}
+
+// A distribution written in the definition reaches the model with its parameters. The
+// marking graph reports it back, which is what a result file records for an MRSPN.
+func TestListenerParsesDistributions(t *testing.T) {
+	listener, errs := parseProg(raid6Text)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected syntax errors: %v", errs)
+	}
+	net, imark := makeNet(listener.builder.labels, listener.builder.env)
+	mg, err := petrinet.CreateMarkingGraphWithDFS(net, imark)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]string, 0, 2)
+	for _, info := range mg.BlockGenTrans() {
+		got = append(got, info.Label+" "+info.Dist)
+	}
+	sort.Strings(got)
+	got = dedup(got)
+	want := []string{"Trebuild expdist(2)", "Trecon unif(1,2)"}
+	if !equalStrings(got, want) {
+		t.Errorf("general transitions %v, want %v", got, want)
+	}
+}
+
+// An arc multiplicity reaches the token game, rather than merely being parsed.
+func TestArcMultiplicityReachesTheModel(t *testing.T) {
+	net, imark := PNreadFromText(`
+		place P (init = 1)
+		place Q
+		exp T (rate = 1.0)
+		arc P to T
+		arc T to Q (multi = 10)
+	`)
+	mg, err := petrinet.CreateMarkingGraphWithDFS(net, imark)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var marks [][]petrinet.MarkInt
+	for _, ms := range mg.StateMarkings() {
+		marks = append(marks, ms...)
+	}
+	if len(marks) != 2 {
+		t.Fatalf("%d states, want 2", len(marks))
+	}
+	// P and Q, in Finalize's sorted order.
+	found := false
+	for _, m := range marks {
+		if m[0] == 0 && m[1] == 10 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("firing T gave %v, want a marking with 10 tokens in Q", marks)
+	}
+}
+
+// An update block runs after the tokens move, and can set a place outright. The tests
+// this file replaces parsed a net with one and never checked what it did.
+func TestUpdateBlockReachesTheModel(t *testing.T) {
+	net, imark := PNreadFromText(`
+		place P (init = 3)
+		place Q
+		exp T (rate = 1.0) {
+			#Q = 7
+		}
+		arc P to T
+		arc T to Q
+	`)
+	mg, err := petrinet.CreateMarkingGraphWithDFS(net, imark)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var marks [][]petrinet.MarkInt
+	for _, ms := range mg.StateMarkings() {
+		marks = append(marks, ms...)
+	}
+	// P and Q, in Finalize's sorted order: (3,0) initially, then Q is 7 whatever the
+	// arc put there -- the update wins.
+	want := map[string]bool{"[3 0]": true, "[2 7]": true, "[1 7]": true, "[0 7]": true}
+	if len(marks) != len(want) {
+		t.Fatalf("%d states, want %d: %v", len(marks), len(want), marks)
+	}
+	for _, m := range marks {
+		if !want[fmt.Sprint(m)] {
+			t.Errorf("unexpected marking %v; the update block did not run", m)
+		}
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func dedup(sorted []string) []string {
+	out := sorted[:0]
+	for i, s := range sorted {
+		if i == 0 || s != sorted[i-1] {
+			out = append(out, s)
+		}
+	}
+	return out
 }

@@ -17,7 +17,7 @@ func NewPNListener() *PNListener {
 }
 
 func (l *PNListener) VisitErrorNode(node antlr.ErrorNode) {
-	l.builder.parserError()
+	l.builder.parserError(node.GetSymbol())
 }
 
 func (l *PNListener) EnterDeclaration(c *DeclarationContext) {
