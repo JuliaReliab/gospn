@@ -41,6 +41,26 @@ func MarkResult(mg *petrinet.MarkingGraph) *result.Result {
 		}
 	}
 	res.SortFrom(first)
+
+	// Which marking each row is. Without this the file carries matrices and nothing
+	// that says what a row means: the markings went to a separate text file, and only
+	// when -s was given. `place` is the column order, shared by every mark<G>.
+	//
+	// A reward called "mark" would collide with these names; Result.Validate refuses
+	// the file rather than letting a writer silently keep the last of the two.
+	res.AddText("place", strings.Join(mg.Net().PlaceLabels(), "\n"))
+	first = res.Len()
+	for g, marks := range mg.StateMarkings() {
+		nplaces := len(mg.Net().PlaceLabels())
+		values := make([]int32, len(marks)*nplaces)
+		for k, m := range marks {
+			for i, n := range m {
+				values[i*len(marks)+k] = int32(n)
+			}
+		}
+		res.AddDenseMatrix(fmt.Sprintf("mark%s", grouplabel[g]), len(marks), nplaces, values)
+	}
+	res.SortFrom(first)
 	return res
 }
 

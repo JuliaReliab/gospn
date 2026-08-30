@@ -1,3 +1,24 @@
+# gospn 0.20.0
+
+- **`gospn mark` writes the markings.** A result file carried the matrices and nothing
+  that said what a row meant: the markings went to a separate text file, and only when
+  `-s` was given. The file now also holds `place` (the place order, one name per line)
+  and a `mark<G>` matrix per group -- one row per state, one column per place -- where
+  row *k* is the state of row *k* of every matrix of that group. Verified row for row
+  against the `-s` output.
+
+  This is what a reader needs to key a state on its marking, which is what comparing
+  gospn's generator against another implementation's requires: the two enumerate the
+  state space in different orders.
+
+  New: `MarkingGraph.StateMarkings()` and `MarkingGraph.Net()`. `StateLabels()` is now
+  written in terms of the former.
+
+- **Fixed: a one-row matrix lost a dimension in `.npz`.** `dimsToShape` dropped a
+  leading 1 so that a 1-by-n vector loads as a 1-D array, which also applied to a
+  declared matrix -- a group with a single state would have loaded as 1-D while every
+  other group loaded as 2-D. Vectors are unchanged.
+
 # gospn 0.19.0
 
 - **Fixed: the marking-graph matrices were not reproducible.** `example/spnp_example5.spn`

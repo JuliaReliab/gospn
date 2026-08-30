@@ -55,7 +55,7 @@ func Write(w io.Writer, r *result.Result) error {
 				}
 			}
 		case result.KindDense:
-			err = writeArray(z, e.Name, dimsToShape(e.Dims), e.Values, e.Fortran)
+			err = writeArray(z, e.Name, dimsToShape(e.Dims, e.Fortran), e.Values, e.Fortran)
 		case result.KindText:
 			err = writeString(z, e.Name, e.Text)
 		}
@@ -155,8 +155,11 @@ func descrOf(values interface{}) (string, error) {
 // dimsToShape drops a trailing length-1 dimension only when it is the leading one of a
 // row vector, so that a vector gospn wrote as 1-by-n loads as a 1-D array rather than
 // a 2-D one -- the shape a caller in Python or Julia expects to index with [i].
-func dimsToShape(dims []int32) []int {
-	if len(dims) == 2 && dims[0] == 1 {
+//
+// An element declared as a matrix keeps both dimensions even when it has one row: a
+// one-state group's markings must still be indexable as [k, i] like every other group's.
+func dimsToShape(dims []int32, matrix bool) []int {
+	if !matrix && len(dims) == 2 && dims[0] == 1 {
 		return []int{int(dims[1])}
 	}
 	shape := make([]int, len(dims))

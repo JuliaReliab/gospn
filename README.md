@@ -182,6 +182,17 @@ run.
 
 Elements are sorted by name within each group, so the same net produces the same file
 twice -- Go map iteration order is random, and before this the order varied per run.
+`gospn mark` also writes `place` -- the place order, one name per line -- and a
+`mark<G>` matrix per group, with one row per state and one column per place. Row *k* of
+`markG0` is the marking of row *k* of every `G0...` matrix, so a reader can say what a
+row means without the separate `-s` state file:
+
+```python
+z = np.load("out.npz")
+places = z["place"].tobytes().decode().split("\n")
+{p: n for p, n in zip(places, z["markG0"][3]) if n}   # the marking of state 3 of G0
+```
+
 All three subcommands that write a file also record `gospn_version`, `gospn_revision`,
 `gospn_command` and `net`.
 
