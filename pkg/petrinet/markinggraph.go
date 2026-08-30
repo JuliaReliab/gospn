@@ -126,8 +126,6 @@ type MarkingGraph struct {
 	groups           []*Group              // list of all groups (sorted)
 	links            []Link                // list of links between marks
 	grouplinks       []GroupTrans          // list of grouptrans
-	markToGroup      map[*Mark]*Group      // map from a mark to a group
-	markToInt        map[*Mark]int         // map from a mark to an index
 	groupToMark      map[*Group][]*Mark    // map from a group to a set of marks
 	groupTransToLink map[GroupTrans][]Link // map from a group transition to a set of links
 	groupGenerator   *groupGenerator       // a generator to make an instance of group
@@ -135,7 +133,7 @@ type MarkingGraph struct {
 }
 
 type makingGraphGenerator interface {
-	create(net *Net, imark []MarkInt, opts SearchOptions) (*Mark, []*Mark, map[*Mark]*GenVec, map[*Mark]GroupType, []Link, error)
+	create(net *Net, imark []MarkInt, opts SearchOptions) (*Mark, []*Mark, []Link, error)
 	clampEvents() []ClampSummary
 }
 
@@ -144,11 +142,11 @@ type makingGraphGenerator interface {
 // limit: transition matrices taken from a truncated graph look perfectly valid and
 // are not, so there is nothing safe to hand back.
 func CreateMarkingGraph(net *Net, imark []MarkInt, method makingGraphGenerator, opts SearchOptions) (*MarkingGraph, error) {
-	m0, marks, markToGenvec, markToGroupType, links, err := method.create(net, imark, opts)
+	m0, marks, links, err := method.create(net, imark, opts)
 	if err != nil {
 		return nil, err
 	}
-	mg := newMarkingGraph(net, m0, marks, markToGenvec, markToGroupType, links)
+	mg := newMarkingGraph(net, m0, marks, links)
 	mg.clamps = method.clampEvents()
 	return mg, nil
 }
@@ -183,19 +181,14 @@ func makeGroupString(net *Net, m []MarkInt) string {
 func newMarkingGraph(net *Net,
 	m0 *Mark,
 	marks []*Mark,
-	markToGenvec map[*Mark]*GenVec,
-	markToGroupType map[*Mark]GroupType,
 	links []Link) *MarkingGraph {
 
 	// make groupmarks
 	generator := newGroupGenerator()
 	groupToMark := make(map[*Group][]*Mark)
-	markToGroup := make(map[*Mark]*Group)
-	markToGroupString := make(map[*Mark]string)
 	for _, m := range marks {
-		markToGroupString[m] = makeGroupString(net, m.toSlice())
-		g := generator.generate(markToGroupType[m], markToGenvec[m], markToGroupString[m])
-		markToGroup[m] = g
+		g := generator.generate(m.gtype, m.genvec, makeGroupString(net, m.toSlice()))
+		m.group = g
 		if mset, ok := groupToMark[g]; ok {
 			groupToMark[g] = append(mset, m)
 		} else {
@@ -204,10 +197,9 @@ func newMarkingGraph(net *Net,
 	}
 
 	// numbering for marks
-	markToInt := make(map[*Mark]int)
 	for _, mset := range groupToMark {
 		for i, m := range mset {
-			markToInt[m] = i
+			m.index = i
 		}
 	}
 
@@ -233,32 +225,55 @@ func newMarkingGraph(net *Net,
 		}
 	})
 
-	// make grouplinks
-	groupTransToLink := make(map[GroupTrans][]Link)
+	// Group the links. The links are partitioned in place and each group is handed a
+	// subslice of the one array: this used to copy every link into a per-group slice,
+	// so the whole link list existed twice -- 26% of the graph's retained heap on
+	// iaas_cloud with n=5, where there are 3.1 million links.
+	//
+	// The sort is stable, so the links within a group stay in the order they were
+	// found. getTransMatrix sums them in that order, and a float sum depends on it:
+	// an unstable sort here would move the last ULP of the generator diagonal.
+	groupTransToLink := make(map[GroupTrans][]Link, len(links)/8+1)
 	grouplinks := make([]GroupTrans, 0)
-	for _, l := range links {
-		var tr GroupTrans
-		if l.tt == TransGEN {
-			tr = GroupTrans{
-				src:       generator.generate(markToGroupType[l.src], markToGenvec[l.src], markToGroupString[l.src]),
-				dest:      generator.generate(markToGroupType[l.dest], markToGenvec[l.dest], markToGroupString[l.dest]),
-				transtype: TransGEN,
-				gentrans:  l.tr.getTrans(),
-			}
-		} else {
-			tr = GroupTrans{
-				src:       generator.generate(markToGroupType[l.src], markToGenvec[l.src], markToGroupString[l.src]),
-				dest:      generator.generate(markToGroupType[l.dest], markToGenvec[l.dest], markToGroupString[l.dest]),
-				transtype: l.tt,
-				gentrans:  nil,
-			}
+	groupOf := make(map[GroupTrans]int32)
+	// linkGroup[i] is the index into grouplinks of links[i]'s group. int32 rather than
+	// GroupTrans: 4 bytes per link instead of 40.
+	linkGroup := make([]int32, len(links))
+	for i, l := range links {
+		tr := GroupTrans{
+			src:       l.src.group,
+			dest:      l.dest.group,
+			transtype: l.tt,
+			gentrans:  nil,
 		}
-		if lset, ok := groupTransToLink[tr]; ok {
-			groupTransToLink[tr] = append(lset, l)
-		} else {
-			groupTransToLink[tr] = []Link{l}
+		if l.tt == TransGEN {
+			tr.gentrans = l.tr.getTrans()
+		}
+		id, ok := groupOf[tr]
+		if !ok {
+			// First appearance decides the order of grouplinks, and GroupLabels and
+			// TransLabels number G0/I0/A0 and P0/P1 by walking it. Sorting the links
+			// below must not disturb it: it would rename the output variables.
+			id = int32(len(grouplinks))
+			groupOf[tr] = id
 			grouplinks = append(grouplinks, tr)
 		}
+		linkGroup[i] = id
+	}
+	order := make([]int, len(links))
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool { return linkGroup[order[a]] < linkGroup[order[b]] })
+	permuteLinks(links, order)
+	sort.SliceStable(linkGroup, func(a, b int) bool { return linkGroup[a] < linkGroup[b] })
+	for start := 0; start < len(links); {
+		end := start
+		for end < len(links) && linkGroup[end] == linkGroup[start] {
+			end++
+		}
+		groupTransToLink[grouplinks[linkGroup[start]]] = links[start:end:end]
+		start = end
 	}
 
 	return &MarkingGraph{
@@ -268,11 +283,35 @@ func newMarkingGraph(net *Net,
 		groups:           groups,
 		links:            links,
 		grouplinks:       grouplinks,
-		markToGroup:      markToGroup,
-		markToInt:        markToInt,
 		groupToMark:      groupToMark,
 		groupTransToLink: groupTransToLink,
 		groupGenerator:   generator,
+	}
+}
+
+// permuteLinks rearranges links so that links[i] ends up holding what links[order[i]]
+// held, in place. Sorting the links directly would need the group index to travel with
+// each one, which is what the separate linkGroup array avoids.
+func permuteLinks(links []Link, order []int) {
+	done := make([]bool, len(order))
+	for i := range order {
+		if done[i] || order[i] == i {
+			done[i] = true
+			continue
+		}
+		// Walk the cycle this position belongs to, carrying one element around it.
+		hold := links[i]
+		j := i
+		for {
+			done[j] = true
+			k := order[j]
+			if k == i {
+				links[j] = hold
+				break
+			}
+			links[j] = links[k]
+			j = k
+		}
 	}
 }
 
@@ -291,13 +330,13 @@ func (mg *MarkingGraph) ClampEvents() []ClampSummary {
 func (mg *MarkingGraph) ToMarkDot(writer io.Writer) {
 	fmt.Fprintf(writer, "digraph { layout=dot; overlap=false; splines=true;\n")
 	for _, mark := range mg.marks {
-		switch markgroup := mg.markToGroup[mark]; markgroup.gtype {
+		switch markgroup := mark.group; markgroup.gtype {
 		case IMMGroup:
-			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\", style=filled];\n", mark, mg.markToInt[mark], markgroup.gv)
+			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\", style=filled];\n", mark, mark.index, markgroup.gv)
 		case GENGroup:
-			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\"];\n", mark, mg.markToInt[mark], markgroup.gv)
+			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\"];\n", mark, mark.index, markgroup.gv)
 		case ABSGroup:
-			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\"];\n", mark, mg.markToInt[mark], markgroup.gv)
+			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\"];\n", mark, mark.index, markgroup.gv)
 		default:
 		}
 	}
@@ -310,7 +349,7 @@ func (mg *MarkingGraph) ToMarkDot(writer io.Writer) {
 func (mg *MarkingGraph) ToMarkDotWithLabel(writer io.Writer) {
 	fmt.Fprintf(writer, "digraph { layout=dot; overlap=false; splines=true;\n")
 	for _, mark := range mg.marks {
-		switch mg.markToGroup[mark].gtype {
+		switch mark.group.gtype {
 		case IMMGroup:
 			if mg.imark == mark {
 				fmt.Fprintf(writer, "\"%p\" [label=\"%s\", style=filled, peripheries=2];\n", mark, mark)
@@ -341,7 +380,7 @@ func (mg *MarkingGraph) ToMarkDotWithLabel(writer io.Writer) {
 func (mg *MarkingGraph) ToMarkDotWithLabelAndGroup(writer io.Writer) {
 	fmt.Fprintf(writer, "digraph { layout=dot; overlap=false; splines=true;\n")
 	for _, mark := range mg.marks {
-		switch markgroup := mg.markToGroup[mark]; markgroup.gtype {
+		switch markgroup := mark.group; markgroup.gtype {
 		case IMMGroup:
 			fmt.Fprintf(writer, "\"%p\" [label=\"%s\n%s\", style=filled];\n", mark, mark, markgroup.gv)
 		case GENGroup:
@@ -421,8 +460,8 @@ func (mg *MarkingGraph) getTransMatrix(gtr GroupTrans) (*CSC, []float64) {
 	}
 	for _, lset := range mg.groupTransToLink[gtr] {
 		e := matelem{
-			i:   mg.markToInt[lset.src],
-			j:   mg.markToInt[lset.dest],
+			i:   lset.src.index,
+			j:   lset.dest.index,
 			val: lset.tr.getValue(mg.net, lset.src),
 		}
 		// log.Print("add ", e)
@@ -681,8 +720,8 @@ func (mg *MarkingGraph) InitVector() map[*Group][]float64 {
 	ivector := make(map[*Group][]float64)
 	for g, mset := range mg.groupToMark {
 		vec := make([]float64, len(mset), len(mset))
-		if g == mg.markToGroup[mg.imark] {
-			vec[mg.markToInt[mg.imark]] = 1
+		if g == mg.imark.group {
+			vec[mg.imark.index] = 1
 		}
 		ivector[g] = vec
 	}
@@ -697,7 +736,7 @@ func (mg *MarkingGraph) RewardVector() map[string]map[*Group][]float64 {
 		for g, mset := range mg.groupToMark {
 			vec := make([]float64, len(mset), len(mset))
 			for _, m := range mset {
-				vec[mg.markToInt[m]] = rewardfunc(m.toSlice())
+				vec[m.index] = rewardfunc(m.toSlice())
 			}
 			rvector[g] = vec
 		}
