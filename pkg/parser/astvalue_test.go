@@ -1,153 +1,133 @@
 package parser
 
 import (
-	"fmt"
+	"math"
 	"testing"
 
 	"github.com/okamumu/gospn/pkg/petrinet"
 )
 
-func TestASTValue1(t *testing.T) {
-	a := ASTInt(10)
-	b := ASTFloat(29.1)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := plus(x, y)
-	fmt.Println(z)
-}
+// The operators, one case each. These used to print their result and assert nothing.
 
-func TestASTValue2(t *testing.T) {
-	a := ASTInt(10)
-	b := ASTFloat(29.1)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := minus(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue3(t *testing.T) {
-	x := MakeValue(10)
-	y := MakeValue(29.1)
-	z, _ := mul(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue4(t *testing.T) {
-	a := ASTInt(10)
-	b := ASTFloat(29.1)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := div(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue5(t *testing.T) {
-	a := ASTInt(10)
-	b := ASTInt(29)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := idiv(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue6(t *testing.T) {
-	a := ASTFloat(10)
-	b := ASTInt(10)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := eq(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue7(t *testing.T) {
-	a := ASTBool(false)
-	b := ASTInt(10)
-	c := ASTInt(100)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z := MakeValue(c)
-	v, _ := ite(x, y, z)
-	fmt.Println(v)
-}
-
-func TestASTValue8(t *testing.T) {
-	a := ASTInt(10)
-	b := ASTString("10")
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := plus(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue9(t *testing.T) {
-	a := ASTString("10")
-	b := ASTString("10")
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z, _ := plus(x, y)
-	fmt.Println(z)
-}
-
-func TestASTValue10(t *testing.T) {
-	a := ASTString("x")
-	b := ASTInt(10)
-	c := ASTInt(100)
-	x := MakeValue(a)
-	y := MakeValue(b)
-	z := MakeValue(c)
-	v, _ := ite(x, y, z)
-	res, err := v.GetInt()
-	if err != nil {
-		fmt.Println(err)
+func TestASTValueBinaryOperators(t *testing.T) {
+	tenPointOne, ten := 29.1, 10.0
+	for _, tc := range []struct {
+		name string
+		fn   func(x, y *ASTValue) (*ASTValue, error)
+		x, y interface{}
+		want interface{}
+	}{
+		{"plus int+float", plus, ASTInt(10), ASTFloat(29.1), ASTFloat(ten + tenPointOne)},
+		{"minus int-float", minus, ASTInt(10), ASTFloat(29.1), ASTFloat(ten - tenPointOne)},
+		{"mul", mul, 10, 29.1, ASTFloat(ten * tenPointOne)},
+		{"div", div, 10, 29.1, ASTFloat(ten / tenPointOne)},
+		{"idiv truncates", idiv, ASTInt(10), ASTInt(29), ASTInt(0)},
+		{"eq across int and float", eq, ASTFloat(10), ASTInt(10), ASTBool(true)},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.fn(MakeValue(tc.x), MakeValue(tc.y))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := res.val; got != tc.want {
+				t.Errorf("got %v (%T), want %v (%T)", got, got, tc.want, tc.want)
+			}
+		})
 	}
-	fmt.Println(res)
 }
 
-func TestASTValue11(t *testing.T) {
-	a := MakeValue(0.1)
-	res, err := expf(a)
+func TestASTValueIfThenElse(t *testing.T) {
+	res, err := ite(MakeValue(ASTBool(false)), MakeValue(ASTInt(10)), MakeValue(ASTInt(100)))
 	if err != nil {
-		fmt.Println(err)
+		t.Fatal(err)
 	}
-	fmt.Println(res)
+	if v, _ := res.GetInt(); v != ASTInt(100) {
+		t.Errorf("ifelse(false, 10, 100) = %v, want 100", v)
+	}
 }
 
-func TestASTValue12(t *testing.T) {
-	a := MakeValue(1)
-	res, err := logf(a)
-	if err != nil {
-		fmt.Println(err)
+// An unresolved variable is a string, and an operator on one yields the expression
+// written out rather than a number. This is what makes an undefined variable survive
+// until something asks for a number -- see petrinet.Net.CheckExpressions.
+func TestASTValueUnresolvedOperandStaysSymbolic(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		x, y interface{}
+		want ASTString
+	}{
+		{"int plus unresolved", ASTInt(10), ASTString("10"), "(10 + 10)"},
+		{"unresolved plus unresolved", ASTString("10"), ASTString("10"), "(10 + 10)"},
+	} {
+		res, err := plus(MakeValue(tc.x), MakeValue(tc.y))
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, err := res.GetString()
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if v != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, v, tc.want)
+		}
 	}
-	fmt.Println(res)
+
+	// The condition of an ifelse is no different: it does not become a number.
+	res, err := ite(MakeValue(ASTString("x")), MakeValue(ASTInt(10)), MakeValue(ASTInt(100)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := res.GetInt(); err == nil {
+		t.Error("ifelse on an unresolved condition produced an int")
+	}
 }
 
-func TestASTValue13(t *testing.T) {
-	a := MakeValue(1.0)
-	res, err := sqrtf(a)
-	if err != nil {
-		fmt.Println(err)
+func TestASTValueMathFunctions(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		fn   func(x *ASTValue) (*ASTValue, error)
+		x    interface{}
+		want ASTFloat
+	}{
+		{"log(1)", logf, 1, 0},
+		{"sqrt(1)", sqrtf, 1.0, 1},
+	} {
+		res, err := tc.fn(MakeValue(tc.x))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if v, _ := res.GetFloat(); v != tc.want {
+			t.Errorf("%s = %v, want %v", tc.name, v, tc.want)
+		}
 	}
-	fmt.Println(res)
+
+	// exp is checked against the same computation rather than a literal.
+	res, err := expf(MakeValue(0.1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := res.GetFloat(); float64(v) != math.Exp(0.1) {
+		t.Errorf("exp(0.1) = %v, want %v", v, math.Exp(0.1))
+	}
 }
 
-func TestASTValue14(t *testing.T) {
-	a := MakeValue(2)
-	b := MakeValue(5)
-	res, err := powf(a, b)
+func TestASTValuePowAndMax(t *testing.T) {
+	res, err := powf(MakeValue(2), MakeValue(5))
 	if err != nil {
-		fmt.Println(err)
+		t.Fatal(err)
 	}
-	fmt.Println(res)
-}
-
-func TestASTValue15(t *testing.T) {
-	a := MakeValue(2)
-	b := MakeValue(5.5)
-	res, err := max(a, b)
+	// Two ints give an int: pow has an integer path (powi), which is what made a
+	// negative exponent loop forever before 0.11.1.
+	if v, err := res.GetInt(); err != nil || v != ASTInt(32) {
+		t.Errorf("pow(2, 5) = %v (%v), want the int 32", v, err)
+	}
+	res, err = max(MakeValue(2), MakeValue(5.5))
 	if err != nil {
-		fmt.Println(err)
+		t.Fatal(err)
 	}
-	fmt.Println(res)
+	if v, _ := res.GetFloat(); v != ASTFloat(5.5) {
+		t.Errorf("max(2, 5.5) = %v, want 5.5", v)
+	}
 }
 
 // Regression tests for the arithmetic/comparison operators. Unlike the tests
