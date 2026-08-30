@@ -164,8 +164,9 @@ In `rewards`, we should set strings of rewards that are described in the Petrine
 ### Output formats
 
 `gospn mark` and `gospn sim` write the same content in any of three formats, chosen with
-`-format`. Without the flag the extension of `-o` decides, and a name with no useful
-extension is written as `mat`, so every existing invocation is unchanged.
+`-format`. Without the flag the extension of `-o` decides; a name with no useful extension, or one
+that names no format, is written as `mat`, so every existing invocation is unchanged. An
+explicit `-format` that names no format is an error rather than a fallback.
 
 | `-format` | file | read it with |
 |---|---|---|
