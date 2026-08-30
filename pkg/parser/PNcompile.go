@@ -49,8 +49,28 @@ func getString(expr ASTExpr, env ASTEnv, str string) (string, error) {
 	}
 }
 
+// failf stops with a message that says which part of which node was being built. The
+// evaluator's errors say what went wrong and nothing about where: "the value is not
+// int32 parser.ASTFloat" left the reader to find the place with the bad `init` on their
+// own.
+func failf(where string, err error) {
+	logger.Panicf("%s: %v", where, err)
+}
+
+// arcEnds is the src and dest of an arc node, read before its other options so that a
+// message about one of them can name the arc.
+func arcEnds(node *PNNode) (src, dest string) {
+	if v, ok := node.options["src"].(string); ok {
+		src = v
+	}
+	if v, ok := node.options["dest"].(string); ok {
+		dest = v
+	}
+	return src, dest
+}
+
 // Create a closure for guard function
-func createGuardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) bool {
+func createGuardFunc(where string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) bool {
 	compiledFn, compiledOK := compileGuard(expr, net, env)
 	if compiledOK {
 		CompileStats.GuardCompiled++
@@ -60,12 +80,12 @@ func createGuardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrine
 	interp := func(mark []petrinet.MarkInt) bool {
 		result, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
-			logger.Panic(err)
+			failf(where, err)
 			return false
 		}
 		val, ok := result.boolean()
 		if !ok {
-			logger.Panic(fmt.Errorf("guard is not bool but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
+			failf(where, fmt.Errorf("guard is not bool but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
 		}
 		return val
 	}
@@ -85,7 +105,7 @@ func createGuardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrine
 }
 
 // Create a closure for weight and rate functions
-func createRateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
+func createRateFunc(where string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
 	compiledFn, compiledOK := compileRate(expr, net, env)
 	if compiledOK {
 		CompileStats.RateCompiled++
@@ -95,12 +115,12 @@ func createRateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet
 	interp := func(mark []petrinet.MarkInt) float64 {
 		result, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
-			logger.Panic(err)
+			failf(where, err)
 			return 0.0
 		}
 		val, ok := result.numeric()
 		if !ok {
-			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
+			failf(where, fmt.Errorf("the value is neither int32 nor float64 but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
 		}
 		return val
 	}
@@ -120,7 +140,7 @@ func createRateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet
 }
 
 // Create a closure for multi function
-func createMultiFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) petrinet.MarkInt {
+func createMultiFunc(where string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) petrinet.MarkInt {
 	compiledFn, compiledOK := compileMulti(expr, net, env)
 	if compiledOK {
 		CompileStats.MultiCompiled++
@@ -130,12 +150,12 @@ func createMultiFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrine
 	interp := func(mark []petrinet.MarkInt) petrinet.MarkInt {
 		astval, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
-			logger.Panic(err)
+			failf(where, err)
 			return 0
 		}
 		val, ok := astval.integer()
 		if !ok {
-			logger.Panic(fmt.Errorf("multiplicity is not int32 but %T (%v) -- an undefined variable evaluates to its own name as a string", astval.val, astval.val))
+			failf(where, fmt.Errorf("multiplicity is not int32 but %T (%v) -- an undefined variable evaluates to its own name as a string", astval.val, astval.val))
 		}
 		return petrinet.MarkInt(val)
 	}
@@ -155,7 +175,7 @@ func createMultiFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrine
 }
 
 // Create a closure for reward function
-func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
+func createRewardFunc(where string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) float64 {
 	compiledFn, compiledOK := compileRate(expr, net, env)
 	if compiledOK {
 		CompileStats.RewardCompiled++
@@ -165,12 +185,12 @@ func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrin
 	interp := func(mark []petrinet.MarkInt) float64 {
 		result, err := expr.EvalWithMark(net, mark, env)
 		if err != nil {
-			logger.Panic(err)
+			failf(where, err)
 			return 0.0
 		}
 		val, ok := result.numeric()
 		if !ok {
-			logger.Panic(fmt.Errorf("the value is neither int32 nor float64 but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
+			failf(where, fmt.Errorf("the value is neither int32 nor float64 but %T (%v) -- an undefined variable evaluates to its own name as a string", result.val, result.val))
 		}
 		return val
 	}
@@ -190,19 +210,19 @@ func createRewardFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrin
 }
 
 // Create au update function
-func createUpdateFunc(expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) []petrinet.MarkInt {
+func createUpdateFunc(where string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) []petrinet.MarkInt {
 	return func(mark []petrinet.MarkInt) []petrinet.MarkInt {
 		if _, err := expr.EvalWithMark(net, mark, env); err == nil {
 			return mark
 		} else {
-			logger.Panic(err)
+			failf(where, err)
 		}
 		return []petrinet.MarkInt{}
 	}
 }
 
 // Create a closure for group function
-func createGroupFunc(_ string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) string {
+func createGroupFunc(where string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func([]petrinet.MarkInt) string {
 	return func(mark []petrinet.MarkInt) string {
 		if result, err := expr.EvalWithMark(net, mark, env); err == nil {
 			if val, err := result.GetInt(); err == nil {
@@ -212,10 +232,10 @@ func createGroupFunc(_ string, expr ASTExpr, net *petrinet.Net, env ASTEnv) func
 			} else if val, err := result.GetString(); err == nil {
 				return fmt.Sprintf("%s", val)
 			} else {
-				logger.Panic(err)
+				failf(where, err)
 			}
 		} else {
-			logger.Panic(err)
+			failf(where, err)
 		}
 		return ""
 	}
@@ -234,10 +254,10 @@ func createPlace(net *petrinet.Net, initmark map[string]petrinet.MarkInt,
 				if val, err := getInt(expr, env, 0); err == nil {
 					initmark[label] = petrinet.MarkInt(val)
 				} else {
-					logger.Panic(err)
+					failf("place "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("place %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "max":
 			switch expr := optval.(type) {
@@ -247,10 +267,10 @@ func createPlace(net *petrinet.Net, initmark map[string]petrinet.MarkInt,
 				if val, err := getInt(expr, env, 0); err == nil {
 					max = petrinet.MarkInt(val)
 				} else {
-					logger.Panic(err)
+					failf("place "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("place %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		default:
 		}
@@ -287,10 +307,10 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 						weightexpr = expr
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "priority":
 			switch expr := optval.(type) {
@@ -301,13 +321,13 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetInt(); err == nil {
 						priority = int(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "vanishable":
 			switch expr := optval.(type) {
@@ -318,13 +338,13 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetBool(); err == nil {
 						vanishable = bool(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "guard":
 			if expr, ok := optval.(ASTExpr); ok {
@@ -341,19 +361,19 @@ func createImmTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	if guardexpr != nil {
 		fstr, err := getString(guardexpr, env, "guard of "+label)
 		if err != nil {
-			logger.Panic("Fail to create guardfunc of ", label, " ", guardexpr)
+			logger.Panicf("transition %s: guard: %v", label, err)
 		}
-		net.SetGuard(tr, fstr, createGuardFunc(guardexpr, net, env))
+		net.SetGuard(tr, fstr, createGuardFunc("transition "+label+": guard", guardexpr, net, env))
 	}
 	if weightexpr != nil {
-		net.SetWeightRate(tr, createRateFunc(weightexpr, net, env))
+		net.SetWeightRate(tr, createRateFunc("transition "+label+": weight", weightexpr, net, env))
 	}
 	if updateexpr != nil {
 		fstr, err := getString(updateexpr, env, "update of "+label)
 		if err != nil {
-			logger.Panic("Fail to create updatefunc of ", label, " ", updateexpr)
+			logger.Panicf("transition %s: update: %v", label, err)
 		}
-		net.SetUpdate(tr, fstr, createUpdateFunc(updateexpr, net, env))
+		net.SetUpdate(tr, fstr, createUpdateFunc("transition "+label+": update", updateexpr, net, env))
 	}
 	env[label] = tr
 	logger.Print("Create immtrans: label ", label, " priority ", priority, " vanishable ", vanishable, " weight ", weight, " guard ", guardexpr)
@@ -386,10 +406,10 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 						rateexpr = expr
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "priority":
 			switch expr := optval.(type) {
@@ -400,13 +420,13 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetInt(); err == nil {
 						priority = int(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "vanishable":
 			switch expr := optval.(type) {
@@ -417,13 +437,13 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetBool(); err == nil {
 						vanishable = bool(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "guard":
 			if expr, ok := optval.(ASTExpr); ok {
@@ -440,19 +460,19 @@ func createExpTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	if guardexpr != nil {
 		fstr, err := getString(guardexpr, env, "guard of "+label)
 		if err != nil {
-			logger.Panic("Fail to create guardfunc of ", label, " ", guardexpr)
+			logger.Panicf("transition %s: guard: %v", label, err)
 		}
-		net.SetGuard(tr, fstr, createGuardFunc(guardexpr, net, env))
+		net.SetGuard(tr, fstr, createGuardFunc("transition "+label+": guard", guardexpr, net, env))
 	}
 	if rateexpr != nil {
-		net.SetWeightRate(tr, createRateFunc(rateexpr, net, env))
+		net.SetWeightRate(tr, createRateFunc("transition "+label+": rate", rateexpr, net, env))
 	}
 	if updateexpr != nil {
 		fstr, err := getString(updateexpr, env, "update of "+label)
 		if err != nil {
-			logger.Panic("Fail to create updatefunc of ", label, " ", updateexpr)
+			logger.Panicf("transition %s: update: %v", label, err)
 		}
-		net.SetUpdate(tr, fstr, createUpdateFunc(updateexpr, net, env))
+		net.SetUpdate(tr, fstr, createUpdateFunc("transition "+label+": update", updateexpr, net, env))
 	}
 	env[label] = tr
 	logger.Print("Create exptrans: label ", label, " priority ", priority, " vanishable ", vanishable, " rate ", rate, " guard ", guardexpr, " rate ", rateexpr)
@@ -474,7 +494,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 			case ASTDist:
 				name, err := expr.GetName().GetString()
 				if err != nil {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 				params := make([]float64, 0)
 				for _, v := range expr.GetParams() {
@@ -484,7 +504,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					} else if y, err := v.GetFloat(); err == nil {
 						parameter = float64(y)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 					params = append(params, float64(parameter))
 				}
@@ -494,7 +514,7 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetDist(); err == nil {
 						name, err := val.GetName().GetString()
 						if err != nil {
-							logger.Panic(err)
+							failf("transition "+label+": "+attr, err)
 						}
 						params := make([]float64, 0)
 						for _, v := range val.GetParams() {
@@ -504,19 +524,19 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 							} else if y, err := v.GetFloat(); err == nil {
 								parameter = float64(y)
 							} else {
-								logger.Panic(err)
+								failf("transition "+label+": "+attr, err)
 							}
 							params = append(params, float64(parameter))
 						}
 						dist = petrinet.NewDistribution(string(name), params...)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "policy":
 			var pol string
@@ -528,13 +548,13 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetString(); err == nil {
 						pol = string(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 			switch pol {
 			case "prd":
@@ -555,13 +575,13 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetInt(); err == nil {
 						priority = int(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "vanishable":
 			switch expr := optval.(type) {
@@ -572,13 +592,13 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 					if val, err := astval.GetBool(); err == nil {
 						vanishable = bool(val)
 					} else {
-						logger.Panic(err)
+						failf("transition "+label+": "+attr, err)
 					}
 				} else {
-					logger.Panic(err)
+					failf("transition "+label+": "+attr, err)
 				}
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, label)
+				logger.Panicf("transition %s: %s: value has the wrong type (%T)", label, attr, optval)
 			}
 		case "guard":
 			if expr, ok := optval.(ASTExpr); ok {
@@ -595,16 +615,16 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 	if guardexpr != nil {
 		fstr, err := getString(guardexpr, env, "guard of "+label)
 		if err != nil {
-			logger.Panic("Fail to create guardfunc of ", label, " ", guardexpr)
+			logger.Panicf("transition %s: guard: %v", label, err)
 		}
-		net.SetGuard(tr, fstr, createGuardFunc(guardexpr, net, env))
+		net.SetGuard(tr, fstr, createGuardFunc("transition "+label+": guard", guardexpr, net, env))
 	}
 	if updateexpr != nil {
 		fstr, err := getString(updateexpr, env, "update of "+label)
 		if err != nil {
-			logger.Panic("Fail to create updatefunc of ", label, " ", updateexpr)
+			logger.Panicf("transition %s: update: %v", label, err)
 		}
-		net.SetUpdate(tr, fstr, createUpdateFunc(updateexpr, net, env))
+		net.SetUpdate(tr, fstr, createUpdateFunc("transition "+label+": update", updateexpr, net, env))
 	}
 	env[label] = tr
 	logger.Print("Create gentrans: label ", label, " priority ", priority, " vanishable ", vanishable, " dist ", dist, " policy ", policy, " guard ", guardexpr)
@@ -613,7 +633,10 @@ func createGenTrans(net *petrinet.Net, label string, node *PNNode, env ASTEnv) *
 
 func createArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 	// default values
-	var src, dest string
+	//
+	// src and dest are read first: node.options is a map, so the loop below can reach
+	// `multi` before them, and an error message would name an arc "  to ".
+	src, dest := arcEnds(node)
 	multi := petrinet.MarkInt(1)
 	var multiexprstring string
 	var multiexpr ASTExpr
@@ -624,14 +647,14 @@ func createArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 			case string:
 				src = val
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, "Arc")
+				logger.Panicf("arc %s to %s: %s: value has the wrong type (%T)", src, dest, attr, optval)
 			}
 		case "dest":
 			switch val := optval.(type) {
 			case string:
 				dest = val
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, "Arc")
+				logger.Panicf("arc %s to %s: %s: value has the wrong type (%T)", src, dest, attr, optval)
 			}
 		case "multi":
 			switch expr := optval.(type) {
@@ -640,16 +663,23 @@ func createArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 					if val, err := astval.GetInt(); err == nil {
 						multi = petrinet.MarkInt(val)
 					} else if val, err := astval.GetString(); err == nil {
+						// A string here is an expression the parameters do not
+						// resolve yet -- it is evaluated per marking instead.
 						multiexprstring = string(val)
 						multiexpr = expr
+					} else {
+						// Neither: `multi = 1.5` used to leave the multiplicity at
+						// its default of 1 without a word.
+						failf("arc "+src+" to "+dest+": "+attr,
+							fmt.Errorf("a multiplicity must be a whole number, not %T (%v)", astval.val, astval.val))
 					}
 				} else {
-					logger.Panic(err)
+					failf("arc "+src+" to "+dest+": "+attr, err)
 				}
 			case int:
 				multi = petrinet.MarkInt(expr)
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, "Arc")
+				logger.Panicf("arc %s to %s: %s: value has the wrong type (%T)", src, dest, attr, optval)
 			}
 		default:
 		}
@@ -658,7 +688,7 @@ func createArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 		if tr, ok := net.GetTrans(dest); ok {
 			tr := net.NewInArc(place, tr, multi)
 			if multiexpr != nil {
-				net.SetInArcMulti(tr, multiexprstring, createMultiFunc(multiexpr, net, env))
+				net.SetInArcMulti(tr, multiexprstring, createMultiFunc("arc "+src+" to "+dest+": multi", multiexpr, net, env))
 			}
 			logger.Print("Create inarc: src", src, " dest ", dest, " multi ", multi, " multiexpr ", multiexpr)
 		} else {
@@ -668,7 +698,7 @@ func createArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 		if place, ok := net.GetPlace(dest); ok {
 			tr := net.NewOutArc(tr, place, multi)
 			if multiexpr != nil {
-				net.SetOutArcMulti(tr, multiexprstring, createMultiFunc(multiexpr, net, env))
+				net.SetOutArcMulti(tr, multiexprstring, createMultiFunc("arc "+src+" to "+dest+": multi", multiexpr, net, env))
 			}
 			logger.Print("Create outarc: src", src, " dest ", dest, " multi ", multi, " multiexpr ", multiexpr)
 		} else {
@@ -681,7 +711,10 @@ func createArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 
 func createHArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 	// default values
-	var src, dest string
+	//
+	// src and dest are read first: node.options is a map, so the loop below can reach
+	// `multi` before them, and an error message would name an arc "  to ".
+	src, dest := arcEnds(node)
 	multi := petrinet.MarkInt(1)
 	var multiexpr ASTExpr
 	var multiexprstring string
@@ -692,14 +725,14 @@ func createHArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 			case string:
 				src = val
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, "Arc")
+				logger.Panicf("arc %s to %s: %s: value has the wrong type (%T)", src, dest, attr, optval)
 			}
 		case "dest":
 			switch val := optval.(type) {
 			case string:
 				dest = val
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, "Arc")
+				logger.Panicf("arc %s to %s: %s: value has the wrong type (%T)", src, dest, attr, optval)
 			}
 		case "multi":
 			switch expr := optval.(type) {
@@ -710,14 +743,17 @@ func createHArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 					} else if val, err := astval.GetString(); err == nil {
 						multiexprstring = string(val)
 						multiexpr = astval
+					} else {
+						failf("arc "+src+" to "+dest+": "+attr,
+							fmt.Errorf("a multiplicity must be a whole number, not %T (%v)", astval.val, astval.val))
 					}
 				} else {
-					logger.Panic(err)
+					failf("arc "+src+" to "+dest+": "+attr, err)
 				}
 			case int:
 				multi = petrinet.MarkInt(expr)
 			default:
-				logger.Panicf("type mismatch in %s of %s", attr, "Arc")
+				logger.Panicf("arc %s to %s: %s: value has the wrong type (%T)", src, dest, attr, optval)
 			}
 		default:
 		}
@@ -726,7 +762,7 @@ func createHArc(net *petrinet.Net, node *PNNode, env ASTEnv) {
 		if tr, ok := net.GetTrans(dest); ok {
 			tr := net.NewInhibitArc(place, tr, multi)
 			if multiexpr != nil {
-				net.SetInArcMulti(tr, multiexprstring, createMultiFunc(multiexpr, net, env))
+				net.SetInArcMulti(tr, multiexprstring, createMultiFunc("arc "+src+" to "+dest+": multi", multiexpr, net, env))
 			}
 		} else {
 			logger.Panicf("%s is a place but %s is not a trans", src, dest)
@@ -755,7 +791,7 @@ func createReward(net *petrinet.Net, label string, node *PNNode, env ASTEnv) {
 		default:
 		}
 	}
-	net.SetReward(label, createRewardFunc(f, net, env))
+	net.SetReward(label, createRewardFunc("reward "+label, f, net, env))
 	logger.Print("Create reward: label ", label, " formula ", f)
 }
 
@@ -779,7 +815,7 @@ func createGroup(net *petrinet.Net, label string, node *PNNode, env ASTEnv) {
 		default:
 		}
 	}
-	net.AddMarkGroupString(createGroupFunc(label, f, net, env))
+	net.AddMarkGroupString(createGroupFunc("group "+label, f, net, env))
 	logger.Print("Create group: label ", label, " formula ", f)
 }
 

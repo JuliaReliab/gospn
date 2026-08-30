@@ -3,6 +3,7 @@ package petrinet
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // CheckExpressions evaluates every guard, rate, weight and reward once, at the initial
@@ -20,6 +21,8 @@ import (
 // file with two typos in it should say so once.
 func (net *Net) CheckExpressions(imark []MarkInt) error {
 	var problems []string
+	// The message already says which transition and which part of it: the closures the
+	// parser builds carry that context, so `what` is only used when they do not.
 	check := func(what string, f func()) {
 		if f == nil {
 			return
@@ -28,7 +31,11 @@ func (net *Net) CheckExpressions(imark []MarkInt) error {
 			// The evaluator reports this class by panicking (log.Panic), so a recover
 			// is the only way to catch it without rewriting the evaluator.
 			if r := recover(); r != nil {
-				problems = append(problems, fmt.Sprintf("%s: %v", what, r))
+				msg := fmt.Sprint(r)
+				if !strings.HasPrefix(msg, what) {
+					msg = what + ": " + msg
+				}
+				problems = append(problems, msg)
 			}
 		}()
 		f()
