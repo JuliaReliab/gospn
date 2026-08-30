@@ -1,0 +1,19 @@
+// Begin: This part has been generated automatically from XML file.
+
+
+// place
+place P1 (init = 10)
+place P2
+
+// trans
+exp T2
+gen T1 (policy = pri)
+
+// arc
+arc P1 to T1
+arc P2 to T2
+arc T1 to P2
+arc T2 to P1
+
+
+// End: This part has been generated automatically from XML file.
