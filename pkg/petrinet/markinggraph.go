@@ -817,3 +817,68 @@ func (g *GenVec) makeLabel(net *Net) string {
 	}
 	return strings.Join(result, ",")
 }
+
+// GenInfo describes one general transition as a result file records it: the name it has
+// in the definition, its firing-time distribution, and -- when it is being reported for a
+// group -- whether it is aging, preempted or disabled there.
+//
+// A result file used to carry the general blocks and nothing else about the general
+// transitions. A block is a 0/1 jump matrix, so `det(5)` and `det(99)` produce byte-
+// identical files, and neither says which transition a `P<k>` block belongs to. Both are
+// needed to solve the regenerative process the file describes.
+type GenInfo struct {
+	Label  string // the transition's name in the definition
+	Dist   string // its distribution, in the definition language: det(2), unif(1,3), ...
+	Status string // for a group: E aging, P preempted, D disabled. Empty otherwise.
+}
+
+// genTransOf finds the GenTrans whose base is tr. GroupTrans stores the base *Trans, so
+// the distribution has to be looked up.
+func (net *Net) genTransOf(tr *Trans) *GenTrans {
+	for _, g := range net.genlist {
+		if g.Trans == tr {
+			return g
+		}
+	}
+	return nil
+}
+
+// BlockGenTrans is which general transition each GEN block belongs to, keyed the same way
+// TransLabels is -- so `TransLabels()[gtr]` names the block ("P0") and this says what it
+// is.
+func (mg *MarkingGraph) BlockGenTrans() map[GroupTrans]GenInfo {
+	out := make(map[GroupTrans]GenInfo)
+	for _, gtr := range mg.grouplinks {
+		if gtr.gentrans == nil {
+			continue
+		}
+		if g := mg.net.genTransOf(gtr.gentrans); g != nil {
+			out[gtr] = GenInfo{Label: g.label, Dist: g.dist.String()}
+		}
+	}
+	return out
+}
+
+// GroupGens is, per group, the general transitions that are aging or preempted in it --
+// the ones whose distributions govern how long the group is occupied. A group where every
+// general transition is disabled is absent rather than present and empty.
+func (mg *MarkingGraph) GroupGens() map[*Group][]GenInfo {
+	out := make(map[*Group][]GenInfo)
+	for _, g := range mg.groups {
+		if g.gv == nil {
+			continue
+		}
+		var infos []GenInfo
+		for i, st := range g.gv.toSlice() {
+			if st == DISABLE || i >= len(mg.net.genlist) {
+				continue
+			}
+			gen := mg.net.genlist[i]
+			infos = append(infos, GenInfo{Label: gen.label, Dist: gen.dist.String(), Status: st.String()})
+		}
+		if len(infos) > 0 {
+			out[g] = infos
+		}
+	}
+	return out
+}

@@ -1,3 +1,35 @@
+# gospn 0.22.0
+
+- **An MRSPN result file now says what its general blocks mean.** A `P<k>` block is a
+  0/1 jump matrix, so the distribution never reached the file through it, and `P<k>` is
+  a counter that names no transition -- `det(5)` and `det(99)` produced byte-identical
+  files, and nothing said whether `P0` was `Trebuild` or `Trecon`. Both are needed to
+  solve the regenerative process the file describes; this was found by the cross-check
+  against `PetriAnalysis.jl`, which could compare every block and still not notice a
+  changed distribution.
+
+  Two tab-separated text elements are added, and only for a net that has general
+  transitions:
+
+  ```
+  gentrans   P0  Trebuild  det(2)        which transition each P<k> block is
+             P1  Trecon    det(24)
+
+  groupgen   G1  Trecon    E  det(24)    per group, the general transitions that are
+             G2  Trebuild  E  det(2)     aging (E) or preempted (P) in it -- what
+             I2  Trebuild  E  det(2)     governs how long the group is occupied
+  ```
+
+  Distributions render in the definition language: `det(2)`, `unif(1,3)`,
+  `expdist(0.5)`. `DistributionInterface` gained `String()` for this.
+
+  New: `MarkingGraph.BlockGenTrans()` (keyed like `TransLabels`) and
+  `MarkingGraph.GroupGens()`.
+
+- `example/raid6.spn` joins the JSON goldens, so the GEN blocks and the two new elements
+  are pinned in a file that diffs. It has two general transitions, which is where the
+  `P<k>` numbering can go wrong.
+
 # gospn 0.21.0
 
 - **The marking-graph search uses about a third less memory and is about a third

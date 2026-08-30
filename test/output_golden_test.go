@@ -34,6 +34,10 @@ var goldenNets = []struct{ name, file string }{
 	{"spnp_example1", "../example/spnp_example1.spn"},
 	{"spnp_example2", "../example/spnp_example2.spn"},
 	{"spnp_example3", "../example/spnp_example3.spn"},
+	// An MRSPN, so the golden covers the GEN blocks and the gentrans/groupgen elements
+	// that say which transition each P<k> is and what governs each group. raid6 has two
+	// general transitions, which is where the P<k> numbering can go wrong.
+	{"raid6", "../example/raid6.spn"},
 }
 
 func markResult(t *testing.T, file string) *result.Result {
