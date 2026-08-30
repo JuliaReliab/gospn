@@ -74,6 +74,22 @@ type event struct {
 	tr   *Trans
 }
 
+// Time, Mark and TransLabel are how a caller outside this package reads a path: event
+// is unexported and its fields with it, but the values RunSimulation returns can still
+// be asked these questions.
+func (e event) Time() float64 { return e.time }
+
+// Mark is the marking after the firing, indexed by place, in Net.PlaceLabels order.
+func (e event) Mark() []MarkInt { return e.mark }
+
+// TransLabel is the transition that fired, empty for the initial marking.
+func (e event) TransLabel() string {
+	if e.tr == nil {
+		return ""
+	}
+	return e.tr.label
+}
+
 func (e event) String(net *Net) string {
 	str := make([]string, 0)
 	for i, n := range e.mark {

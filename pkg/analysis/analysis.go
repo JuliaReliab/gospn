@@ -5,6 +5,7 @@ package analysis
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/okamumu/gospn/pkg/petrinet"
 	"github.com/okamumu/gospn/pkg/result"
@@ -88,4 +89,39 @@ func SimRunInfo(res *result.Result, run SimRun) {
 	// Clamping is reported on stderr, but the fact that a run was not exact has to
 	// travel with the data as well -- whoever reads the file later did not see it.
 	res.AddDense("clamped", []int32{int32(run.Clamped)})
+}
+
+// PathStep is one firing of a simulated path. petrinet's own event type is unexported,
+// so the caller converts; the accessors on it are Time, Mark and TransLabel.
+type PathStep struct {
+	Time  float64
+	Mark  []petrinet.MarkInt
+	Trans string // empty for the initial marking, which nothing fired to reach
+}
+
+// PathResult collects one simulated path: the marking after every firing, when it
+// happened, and what fired. `gospn test` printed this to stdout and nothing else,
+// which made it the one subcommand whose output could not be read back by anything.
+//
+// Marking column i is place PlaceLabels()[i]; the states are stored column-major, so
+// column i of the matrix is that place's token count over the whole path.
+func PathResult(net *petrinet.Net, path []PathStep) *result.Result {
+	labels := net.PlaceLabels()
+	res := &result.Result{}
+	res.AddText("place", strings.Join(labels, "\n"))
+
+	times := make([]float64, len(path))
+	trans := make([]string, len(path))
+	states := make([]int32, len(path)*len(labels))
+	for k, e := range path {
+		times[k] = e.Time
+		trans[k] = e.Trans
+		for i, n := range e.Mark {
+			states[i*len(path)+k] = int32(n)
+		}
+	}
+	res.AddDense("path_time", times)
+	res.AddText("path_trans", strings.Join(trans, "\n"))
+	res.AddDenseMatrix("path_state", len(path), len(labels), states)
+	return res
 }

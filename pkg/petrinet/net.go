@@ -441,6 +441,16 @@ func (net *Net) sortTransList() {
 	})
 }
 
+// PlaceLabels is the place order a marking vector is indexed by. Finalize sorts the
+// places by label, so this is the order every []MarkInt in the package uses.
+func (net *Net) PlaceLabels() []string {
+	labels := make([]string, len(net.placelist))
+	for i, p := range net.placelist {
+		labels[i] = p.label
+	}
+	return labels
+}
+
 func (net *Net) MakeMark(initmark map[string]MarkInt) []MarkInt {
 	m := make([]MarkInt, len(net.placelist), len(net.placelist))
 	for k, v := range initmark {

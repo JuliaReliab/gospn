@@ -47,15 +47,15 @@ func Write(w io.Writer, r *result.Result) error {
 			if len(e.Dims) > 1 {
 				cols = int64(e.Dims[1])
 			}
-			if err = writeArray(z, e.Name+".data", []int{len(e.Ir)}, e.Values); err == nil {
-				if err = writeArray(z, e.Name+".indices", []int{len(e.Ir)}, toInt64(e.Ir)); err == nil {
-					if err = writeArray(z, e.Name+".indptr", []int{len(e.Jc)}, toInt64(e.Jc)); err == nil {
-						err = writeArray(z, e.Name+".shape", []int{2}, []int64{rows, cols})
+			if err = writeArray(z, e.Name+".data", []int{len(e.Ir)}, e.Values, false); err == nil {
+				if err = writeArray(z, e.Name+".indices", []int{len(e.Ir)}, toInt64(e.Ir), false); err == nil {
+					if err = writeArray(z, e.Name+".indptr", []int{len(e.Jc)}, toInt64(e.Jc), false); err == nil {
+						err = writeArray(z, e.Name+".shape", []int{2}, []int64{rows, cols}, false)
 					}
 				}
 			}
 		case result.KindDense:
-			err = writeArray(z, e.Name, dimsToShape(e.Dims), e.Values)
+			err = writeArray(z, e.Name, dimsToShape(e.Dims), e.Values, e.Fortran)
 		case result.KindText:
 			err = writeString(z, e.Name, e.Text)
 		}
@@ -72,7 +72,7 @@ func member(z *zip.Writer, name string) (io.Writer, error) {
 	return z.CreateHeader(&zip.FileHeader{Name: name + ".npy", Method: zip.Deflate})
 }
 
-func writeArray(z *zip.Writer, name string, shape []int, values interface{}) error {
+func writeArray(z *zip.Writer, name string, shape []int, values interface{}, fortran bool) error {
 	descr, err := descrOf(values)
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func writeArray(z *zip.Writer, name string, shape []int, values interface{}) err
 	if err != nil {
 		return err
 	}
-	if err := writeHeader(w, descr, shape); err != nil {
+	if err := writeHeader(w, descr, shape, fortran); err != nil {
 		return err
 	}
 	return binary.Write(w, binary.LittleEndian, values)
@@ -102,7 +102,7 @@ func writeString(z *zip.Writer, name, s string) error {
 		return err
 	}
 	data := []byte(s)
-	if err := writeHeader(w, "|u1", []int{len(data)}); err != nil {
+	if err := writeHeader(w, "|u1", []int{len(data)}, false); err != nil {
 		return err
 	}
 	_, err = w.Write(data)
@@ -112,12 +112,16 @@ func writeString(z *zip.Writer, name, s string) error {
 // writeHeader writes the .npy v1.0 preamble: magic, version, a uint16 header length,
 // and the dict, space-padded so that the whole preamble is a multiple of 64 bytes and
 // the data that follows is aligned.
-func writeHeader(w io.Writer, descr string, shape []int) error {
+func writeHeader(w io.Writer, descr string, shape []int, fortran bool) error {
 	var sb strings.Builder
 	for _, n := range shape {
 		fmt.Fprintf(&sb, "%d,", n)
 	}
-	dict := fmt.Sprintf("{'descr': '%s', 'fortran_order': False, 'shape': (%s), }", descr, sb.String())
+	order := "False"
+	if fortran {
+		order = "True"
+	}
+	dict := fmt.Sprintf("{'descr': '%s', 'fortran_order': %s, 'shape': (%s), }", descr, order, sb.String())
 	const preamble = 6 + 2 + 2 // magic + version + header length
 	pad := 64 - (preamble+len(dict)+1)%64
 	if pad == 64 {

@@ -387,6 +387,8 @@ func cmdsim(args []string) {
 
 func cmdtest(args []string) {
 	infile := flag.String("i", "", "Petrinet definition file")
+	outfile := flag.String("o", "", "Name of the output file (empty writes nothing but the path on stdout)")
+	format := flag.String("format", "", formatUsage)
 	params0 := flag.String("pre", "", "Put a small Petrinet definition like parameters to the beginning of original PN definition")
 	params := flag.String("post", "", "Put a small Petrinet definition like parameters to the end of original PN definition")
 	seed := flag.Int64("s", 1234, "A seed for random number generator")
@@ -415,6 +417,26 @@ func cmdtest(args []string) {
 	for i, x := range path {
 		fmt.Println(i, x.String(net))
 	}
+
+	// The path went to stdout and nowhere else, so this was the one subcommand whose
+	// output nothing could read back. Writing a file stays opt-in: -o was not a flag
+	// here before, and the printed path is what existing use depends on.
+	if *outfile == "" {
+		return
+	}
+	steps := make([]analysis.PathStep, len(path))
+	for i, x := range path {
+		steps[i] = analysis.PathStep{Time: x.Time(), Mark: x.Mark(), Trans: x.TransLabel()}
+	}
+	res := analysis.PathResult(net, steps)
+	result.Provenance{
+		Version:  version,
+		Revision: buildRevision(),
+		Net:      *infile,
+		Command:  "test",
+	}.AddTo(res)
+	res.AddDense("seed", []int64{*seed})
+	writeResult(*outfile, *format, res)
 }
 
 func cmdgen(args []string) {

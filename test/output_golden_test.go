@@ -129,6 +129,8 @@ func syntheticResult() *result.Result {
 	res.AddDense("initQ", []float64{1, 0, 0})
 	res.AddDense("seed", []int64{1234})
 	res.AddDense("simulations", []int32{50})
+	// Column-major, the one element where the buffer order is not the reading order.
+	res.AddDenseMatrix("path_state", 3, 2, []int32{0, 1, 2, 3, 4, 5})
 	res.AddText("net", "example/mm1.spn")
 	return res
 }
