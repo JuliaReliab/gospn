@@ -89,10 +89,27 @@ The option `-post` is to put some additional defintion like parameters to the en
 
 The option `-maxstates` stops the reachability search once that many markings have been
 found, and reports how far it got instead of running until the process is killed. It
-defaults to 1,000,000, which is around 0.5-1.5 GB depending on how many places the net
-has; `-maxstates 0` removes the limit. A net that hits it is either unbounded, or large
-enough that its state space cannot be enumerated at all -- `example/k8s.spn` is the
-latter, and is meant to be analysed with `gospn sim`.
+defaults to 1,000,000; `-maxstates 0` removes the limit.
+
+What that costs depends on the net. On `example/iaas_cloud.spn` (17 places) it is about
+900 bytes per state at peak, so the default limit is roughly 1 GB there. That net is
+parameterised by `n` and its state space grows 5-7x per step of it, which makes it the
+easiest way to see the limit:
+
+```sh
+gospn mark -i example/iaas_cloud.spn -post "n = 5" -o out.npz   #   910,731 states
+gospn mark -i example/iaas_cloud.spn -post "n = 6" -maxstates 0 -o out.npz
+                                                                # 3,811,992 states, ~3.5 GB
+```
+
+A net that hits the limit is either unbounded, or large enough that its state space
+cannot be enumerated at all -- `example/k8s.spn` is the latter (53 places, several
+holding up to 1000 tokens) and is meant to be analysed with `gospn sim`.
+
+A net whose guards, rates or rewards name a variable that is not defined is rejected
+before the search runs, with every such expression listed. An undefined variable is not
+a parse error -- an unresolved name evaluates to itself as a string -- so this used to
+surface as a crash after the search had already finished.
 
 ### Monte Carlo simulation
 
