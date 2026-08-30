@@ -199,6 +199,23 @@ run.
 
 Elements are sorted by name within each group, so the same net produces the same file
 twice -- Go map iteration order is random, and before this the order varied per run.
+For an MRSPN, `gospn mark` also writes two tab-separated text elements. The general
+blocks alone do not describe the process: a `P<k>` block is a 0/1 jump matrix, so its
+distribution never reaches the file through it, and `P<k>` is a counter that names no
+transition.
+
+```
+gentrans    P0<TAB>Trebuild<TAB>det(2)          which transition each P<k> block is,
+            P1<TAB>Trecon<TAB>det(24)           and its firing-time distribution
+
+groupgen    G1<TAB>Trecon<TAB>E<TAB>det(24)     per group: the general transitions that
+            G2<TAB>Trebuild<TAB>E<TAB>det(2)    are aging (E) or preempted (P) in it,
+            I2<TAB>Trebuild<TAB>E<TAB>det(2)    which is what governs its sojourn
+```
+
+Distributions are rendered in the definition language (`det(2)`, `unif(1,3)`,
+`expdist(0.5)`). Neither element is written for a net with no general transitions.
+
 `gospn mark` also writes `place` -- the place order, one name per line -- and a
 `mark<G>` matrix per group, with one row per state and one column per place. Row *k* of
 `markG0` is the marking of row *k* of every `G0...` matrix, so a reader can say what a

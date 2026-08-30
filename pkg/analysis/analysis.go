@@ -5,6 +5,7 @@ package analysis
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/okamumu/gospn/pkg/petrinet"
@@ -61,7 +62,43 @@ func MarkResult(mg *petrinet.MarkingGraph) *result.Result {
 		res.AddDenseMatrix(fmt.Sprintf("mark%s", grouplabel[g]), len(marks), nplaces, values)
 	}
 	res.SortFrom(first)
+
+	// What the general blocks do not say. A GEN block is a 0/1 jump matrix, so the
+	// distribution never reaches the file through it, and the block's name ("P0") is a
+	// counter that identifies no transition. Both are needed to solve the regenerative
+	// process, and both are omitted entirely for a net with no GEN transitions.
+	if blocks := mg.BlockGenTrans(); len(blocks) > 0 {
+		lines := make([]string, 0, len(blocks))
+		for gtr, info := range blocks {
+			lines = append(lines, fmt.Sprintf("%s\t%s\t%s", grouptranslabel[gtr], info.Label, info.Dist))
+		}
+		sort.Strings(lines)
+		res.AddText("gentrans", strings.Join(uniq(lines), "\n"))
+	}
+	if gens := mg.GroupGens(); len(gens) > 0 {
+		lines := make([]string, 0, len(gens))
+		for g, infos := range gens {
+			for _, info := range infos {
+				lines = append(lines, fmt.Sprintf("%s\t%s\t%s\t%s", grouplabel[g], info.Label, info.Status, info.Dist))
+			}
+		}
+		sort.Strings(lines)
+		res.AddText("groupgen", strings.Join(lines, "\n"))
+	}
 	return res
+}
+
+// uniq removes duplicate lines from a sorted slice. One general transition can have a
+// block between several pairs of groups, and they all carry the same name and
+// distribution.
+func uniq(sorted []string) []string {
+	out := sorted[:0]
+	for i, s := range sorted {
+		if i == 0 || s != sorted[i-1] {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // SimRun is everything one `gospn sim` run produced, in the order RunAll returns it.
