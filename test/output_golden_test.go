@@ -30,27 +30,48 @@ var update = flag.Bool("update", false, "rewrite the golden output files")
 
 // The nets whose marking-graph output is pinned. Small ones: the point is that the
 // document is readable in a diff, not that it is large.
-var goldenNets = []struct{ name, file string }{
-	{"spnp_example1", "../example/spnp_example1.spn"},
-	{"spnp_example2", "../example/spnp_example2.spn"},
-	{"spnp_example3", "../example/spnp_example3.spn"},
+var goldenNets = []struct {
+	name, file string
+	tangible   bool
+}{
+	{"spnp_example1", "../example/spnp_example1.spn", false},
+	{"spnp_example2", "../example/spnp_example2.spn", false},
+	{"spnp_example3", "../example/spnp_example3.spn", false},
 	// An MRSPN, so the golden covers the GEN blocks and the gentrans/groupgen elements
 	// that say which transition each P<k> is and what governs each group. raid6 has two
 	// general transitions, which is where the P<k> numbering can go wrong.
-	{"raid6", "../example/raid6.spn"},
+	{"raid6", "../example/raid6.spn", false},
+	// `mark -t` runs a second search (dfstangible.go) that vanishes immediate markings
+	// as it goes. It has its own goldens because it has its own output: on raid6.spn it
+	// removes a whole group. Five of its functions were reached by no test at all until
+	// these.
+	{"spnp_example2", "../example/spnp_example2.spn", true},
+	{"raid6", "../example/raid6.spn", true},
 }
 
-func markResult(t *testing.T, file string) *result.Result {
+func markResult(t *testing.T, file string, tangible bool) *result.Result {
 	t.Helper()
 	net, imark, err := parser.PNreadFromFile(file)
 	if err != nil {
 		t.Fatalf("%s: %v", file, err)
 	}
-	mg, err := petrinet.CreateMarkingGraphWithDFS(net, imark)
+	build := petrinet.CreateMarkingGraphWithDFS
+	if tangible {
+		build = petrinet.CreateMarkingGraphWithDFSTangible
+	}
+	mg, err := build(net, imark)
 	if err != nil {
 		t.Fatalf("%s: %v", file, err)
 	}
 	return analysis.MarkResult(mg)
+}
+
+// goldenName keeps the two searches' goldens apart.
+func goldenName(name string, tangible bool) string {
+	if tangible {
+		return name + ".mark-t"
+	}
+	return name + ".mark"
 }
 
 // TestMarkResultJSONGolden is the first test over what a subcommand actually writes.
@@ -59,12 +80,12 @@ func markResult(t *testing.T, file string) *result.Result {
 func TestMarkResultJSONGolden(t *testing.T) {
 	for _, gn := range goldenNets {
 		gn := gn
-		t.Run(gn.name, func(t *testing.T) {
+		t.Run(goldenName(gn.name, gn.tangible), func(t *testing.T) {
 			var buf bytes.Buffer
-			if err := jsonout.Write(&buf, markResult(t, gn.file)); err != nil {
+			if err := jsonout.Write(&buf, markResult(t, gn.file, gn.tangible)); err != nil {
 				t.Fatal(err)
 			}
-			path := filepath.Join("data", "golden", gn.name+".mark.json")
+			path := filepath.Join("data", "golden", goldenName(gn.name, gn.tangible)+".json")
 			if *update {
 				if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 					t.Fatal(err)
@@ -94,7 +115,7 @@ func TestMarkResultIsReproducible(t *testing.T) {
 		var first []byte
 		for i := 0; i < 5; i++ {
 			var buf bytes.Buffer
-			if err := jsonout.Write(&buf, markResult(t, gn.file)); err != nil {
+			if err := jsonout.Write(&buf, markResult(t, gn.file, gn.tangible)); err != nil {
 				t.Fatal(err)
 			}
 			if i == 0 {
@@ -112,7 +133,7 @@ func TestMarkResultIsReproducible(t *testing.T) {
 func TestFormatsAgree(t *testing.T) {
 	cases := map[string]*result.Result{"synthetic": syntheticResult()}
 	for _, gn := range goldenNets {
-		cases[gn.name] = markResult(t, gn.file)
+		cases[goldenName(gn.name, gn.tangible)] = markResult(t, gn.file, gn.tangible)
 	}
 	for name, res := range cases {
 		name, res := name, res

@@ -1,3 +1,23 @@
+# gospn 0.25.0
+
+- **`gospn mark -t` is tested.** It runs a second, separate search (`dfstangible.go`)
+  that vanishes immediate markings during the walk, and it changes the state space --
+  9 states become 5 on `raid6.spn`, 910,731 become 568,584 on `iaas_cloud.spn` with
+  n = 5. Nothing pinned its result, and five of its functions (`addMarkAsImm`,
+  `addLinkAsImm`, `addLinkAsGen`, `setNovanishable`, `union`) were executed by no test
+  at all. Every function in the file is now reached.
+
+  - `TestTangibleSearchKeepsTheTangibleMarkings` (`test/`) builds both graphs for each of
+    the eight bundled nets and checks that **vanishing a marking does not change which
+    tangible markings exist**. The two disagree on the vanishing ones by construction --
+    that is the flag -- so this is the invariant that holds.
+  - `spnp_example2` and `raid6` gained `-t` JSON goldens, which is where the output is
+    pinned in a form that diffs.
+
+  The **generator** it produces is checked against two independent routes in
+  `PetriAnalysis.jl` 0.2.5: against the same net analysed without `-t`, and against that
+  package's own vanishing elimination. All three agree to 1e-12.
+
 # gospn 0.24.0
 
 - **A definition that does not parse is an error, not a panic.** A misplaced character
