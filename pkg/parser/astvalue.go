@@ -728,7 +728,7 @@ func (a *ASTValue) GetBool() (ASTBool, error) {
 		return v, nil
 	default:
 		// log.Print(v)
-		return false, fmt.Errorf("The value is not bool %T", v)
+		return false, fmt.Errorf("the value is not bool but %T (%v)", v, v)
 	}
 }
 
@@ -738,7 +738,7 @@ func (a *ASTValue) GetInt() (ASTInt, error) {
 		return v, nil
 	default:
 		// log.Print(v)
-		return 0, fmt.Errorf("The value is not int32 %T", v)
+		return 0, fmt.Errorf("the value is not a whole number but %T (%v)", v, v)
 	}
 }
 
@@ -748,7 +748,7 @@ func (a *ASTValue) GetFloat() (ASTFloat, error) {
 		return v, nil
 	default:
 		// log.Print(v)
-		return 0, fmt.Errorf("The value is not float64 %T", v)
+		return 0, fmt.Errorf("the value is not a number but %T (%v)", v, v)
 	}
 }
 
@@ -758,7 +758,7 @@ func (a *ASTValue) GetString() (ASTString, error) {
 		return v, nil
 	default:
 		// log.Print(v)
-		return "", fmt.Errorf("The value is not string %T", v)
+		return "", fmt.Errorf("the value is not a string but %T (%v)", v, v)
 	}
 }
 
@@ -768,7 +768,7 @@ func (a *ASTValue) GetDist() (ASTDist, error) {
 		return v, nil
 	default:
 		// log.Print(v)
-		return ASTDist{}, fmt.Errorf("The value is not dist %T", v)
+		return ASTDist{}, fmt.Errorf("the value is not a distribution but %T (%v)", v, v)
 	}
 }
 

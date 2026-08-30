@@ -222,6 +222,35 @@ func TestCLIRejectsABadDefinition(t *testing.T) {
 			"place P (init = 1)\nexp T (rate = 1.0)\narc P to Q\n",
 			"not a trans",
 		},
+		// Each of these says which node and which part of it. They used to say only
+		// what kind of value was wrong: "The value is not int32 parser.ASTFloat",
+		// leaving the reader to find the place with the bad init.
+		{
+			"a place whose init is not a whole number",
+			"place P (init = 1.5)\nexp T (rate = 1.0)\narc P to T\n",
+			"place P: init: the value is not a whole number",
+		},
+		{
+			"a transition whose rate is a string",
+			"place P (init = 1)\nexp T (rate = \"x\")\narc P to T\n",
+			"transition T: rate:",
+		},
+		{
+			"a guard that is not a condition",
+			"place P (init = 1)\nexp T (guard = 1 + 1, rate = 1.0)\narc P to T\n",
+			"transition T: guard:",
+		},
+		{
+			"a reward that is not a number",
+			"place P (init = 1)\nexp T (rate = 1.0)\narc P to T\nreward r \"hello\"\n",
+			"reward r:",
+		},
+		// `multi = 1.5` silently left the multiplicity at 1.
+		{
+			"an arc multiplicity that is not a whole number",
+			"place P (init = 1)\nplace Q\nexp T (rate = 1.0)\narc P to T\narc T to Q (multi = 1.5)\n",
+			"arc T to Q: multi: a multiplicity must be a whole number",
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

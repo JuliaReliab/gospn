@@ -1,3 +1,29 @@
+# gospn 0.27.0
+
+- **An error says which node and which part of it.** 0.24.0 stopped the stack traces;
+  the messages themselves still did not say where. `The value is not int32
+  parser.ASTFloat` left the reader to find the place with the bad `init` on their own.
+  Every message from the parser now reads `<kind> <name>: <part>: <what>`:
+
+  ```
+  place P: init: the value is not a whole number but parser.ASTFloat (1.5)
+  transition T: rate: the value is neither int32 nor float64 but parser.ASTString ("x")
+  arc T to Q: multi: a multiplicity must be a whole number, not parser.ASTFloat (1.5)
+  reward r: ...
+  ```
+
+  The closures the parser builds carry that context, so `Net.CheckExpressions` no longer
+  adds its own and the prefix is not doubled. The value-type errors read as English and
+  show the offending value, since they now reach users rather than only a stack trace.
+
+- **Fixed: `multi = 1.5` was accepted and meant 1.** A multiplicity that is neither a
+  whole number nor an unresolved expression fell through both branches, leaving the
+  default of 1 without a word. It is an error.
+
+- **Fixed: an error about an arc could name it `arc  to `.** `node.options` is a map, so
+  the loop reading the options could reach `multi` before `src` and `dest`. The ends are
+  read first now.
+
 # gospn 0.26.0
 
 - **The command layer has tests.** `cmd/gospn.go` was at 0.0% coverage: every flag, the
