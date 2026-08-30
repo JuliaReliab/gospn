@@ -461,6 +461,15 @@ func (net *Net) MakeMark(initmark map[string]MarkInt) []MarkInt {
 	return m
 }
 
+// dotName is a node's name in a DOT file. Places and transitions are named by their
+// labels rather than by their addresses: `%p` made the file differ on every run of the
+// same net, so two drawings could not be compared and a generated diagram under version
+// control changed every line every time. Labels are unique within their kind, and the
+// prefix keeps a place and a transition of the same name apart.
+func dotName(p *Place) string { return "p_" + p.label }
+
+func dotTransName(tr *Trans) string { return "t_" + tr.label }
+
 func (net *Net) ToPNDot(writer io.Writer) {
 	pnbuf := newpndot(writer)
 	transtype := makeTransType(net)
@@ -521,7 +530,7 @@ func (b *pndot) drawPlace(net *Net, transtype map[*Trans]TransType, p *Place) {
 	if _, ok := b.visitedPlace[p]; ok == true {
 		return
 	}
-	fmt.Fprintf(b.buf, "\"%p\" [shape=circle,label=\"%s\"];\n", p, p.makeLabel(net))
+	fmt.Fprintf(b.buf, "\"%s\" [shape=circle,label=\"%s\"];\n", dotName(p), p.makeLabel(net))
 	b.visitedPlace[p] = struct{}{}
 	for _, arc := range p.inarcs {
 		b.drawOutArc(net, transtype, arc)
@@ -537,11 +546,11 @@ func (b *pndot) drawTrans(net *Net, transtype map[*Trans]TransType, tr *Trans) {
 	}
 	switch transtype[tr] {
 	case TransIMM:
-		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.02, style=\"filled,dashed\"];\n", tr, tr.makeLabel(net))
+		fmt.Fprintf(b.buf, "\"%s\" [shape=box,label=\"%s\", width=0.8, height=0.02, style=\"filled,dashed\"];\n", dotTransName(tr), tr.makeLabel(net))
 	case TransEXP:
-		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2];\n", tr, tr.makeLabel(net))
+		fmt.Fprintf(b.buf, "\"%s\" [shape=box,label=\"%s\", width=0.8, height=0.2];\n", dotTransName(tr), tr.makeLabel(net))
 	case TransGEN:
-		fmt.Fprintf(b.buf, "\"%p\" [shape=box,label=\"%s\", width=0.8, height=0.2, style=\"filled\"];\n", tr, tr.makeLabel(net))
+		fmt.Fprintf(b.buf, "\"%s\" [shape=box,label=\"%s\", width=0.8, height=0.2, style=\"filled\"];\n", dotTransName(tr), tr.makeLabel(net))
 	default:
 		panic("error")
 	}
@@ -559,9 +568,9 @@ func (b *pndot) drawInArc(net *Net, transtype map[*Trans]TransType, arc *InArc) 
 		return
 	}
 	if arc.inhibit == false {
-		fmt.Fprintf(b.buf, "\"%p\"->\"%p\" [label=\"%s\"];\n", arc.src, arc.dest, arc.makeLabel(net))
+		fmt.Fprintf(b.buf, "\"%s\"->\"%s\" [label=\"%s\"];\n", dotName(arc.src), dotTransName(arc.dest), arc.makeLabel(net))
 	} else {
-		fmt.Fprintf(b.buf, "\"%p\"->\"%p\" [label=\"%s\", arrowhead=odot];\n", arc.src, arc.dest, arc.makeLabel(net))
+		fmt.Fprintf(b.buf, "\"%s\"->\"%s\" [label=\"%s\", arrowhead=odot];\n", dotName(arc.src), dotTransName(arc.dest), arc.makeLabel(net))
 	}
 	b.visitedInArc[arc] = struct{}{}
 	b.drawPlace(net, transtype, arc.src)
@@ -572,7 +581,7 @@ func (b *pndot) drawOutArc(net *Net, transtype map[*Trans]TransType, arc *OutArc
 	if _, ok := b.visitedOutArc[arc]; ok == true {
 		return
 	}
-	fmt.Fprintf(b.buf, "\"%p\"->\"%p\" [label=\"%s\"];\n", arc.src, arc.dest, arc.makeLabel(net))
+	fmt.Fprintf(b.buf, "\"%s\"->\"%s\" [label=\"%s\"];\n", dotTransName(arc.src), dotName(arc.dest), arc.makeLabel(net))
 	b.visitedOutArc[arc] = struct{}{}
 	b.drawTrans(net, transtype, arc.src)
 	b.drawPlace(net, transtype, arc.dest)

@@ -327,71 +327,82 @@ func (mg *MarkingGraph) ClampEvents() []ClampSummary {
 	return mg.clamps
 }
 
+// dotName is a marking's node name in a DOT file: its group and its row within that
+// group, as `G0_3`. The address was used before, so the same net produced a different
+// file on every run -- two drawings could not be diffed, and a generated diagram under
+// version control changed every line every time.
+func (mg *MarkingGraph) dotName(labels map[*Group]string, m *Mark) string {
+	return fmt.Sprintf("%s_%d", labels[m.group], m.index)
+}
+
 func (mg *MarkingGraph) ToMarkDot(writer io.Writer) {
+	labels := mg.GroupLabels()
 	fmt.Fprintf(writer, "digraph { layout=dot; overlap=false; splines=true;\n")
 	for _, mark := range mg.marks {
 		switch markgroup := mark.group; markgroup.gtype {
 		case IMMGroup:
-			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\", style=filled];\n", mark, mark.index, markgroup.gv)
+			fmt.Fprintf(writer, "\"%s\" [shape=circle, label=\"%d\n%s\", style=filled];\n", mg.dotName(labels, mark), mark.index, markgroup.gv)
 		case GENGroup:
-			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\"];\n", mark, mark.index, markgroup.gv)
+			fmt.Fprintf(writer, "\"%s\" [shape=circle, label=\"%d\n%s\"];\n", mg.dotName(labels, mark), mark.index, markgroup.gv)
 		case ABSGroup:
-			fmt.Fprintf(writer, "\"%p\" [shape=circle, label=\"%d\n%s\"];\n", mark, mark.index, markgroup.gv)
+			fmt.Fprintf(writer, "\"%s\" [shape=circle, label=\"%d\n%s\"];\n", mg.dotName(labels, mark), mark.index, markgroup.gv)
 		default:
 		}
 	}
 	for _, link := range mg.links {
-		fmt.Fprintf(writer, "\"%p\"->\"%p\" [label=\"%s\"];\n", link.src, link.dest, link.tr.getTrans().label)
+		fmt.Fprintf(writer, "\"%s\"->\"%s\" [label=\"%s\"];\n", mg.dotName(labels, link.src), mg.dotName(labels, link.dest), link.tr.getTrans().label)
 	}
 	fmt.Fprintf(writer, "}\n")
 }
 
 func (mg *MarkingGraph) ToMarkDotWithLabel(writer io.Writer) {
+	labels := mg.GroupLabels()
 	fmt.Fprintf(writer, "digraph { layout=dot; overlap=false; splines=true;\n")
 	for _, mark := range mg.marks {
 		switch mark.group.gtype {
 		case IMMGroup:
 			if mg.imark == mark {
-				fmt.Fprintf(writer, "\"%p\" [label=\"%s\", style=filled, peripheries=2];\n", mark, mark)
+				fmt.Fprintf(writer, "\"%s\" [label=\"%s\", style=filled, peripheries=2];\n", mg.dotName(labels, mark), mark)
 			} else {
-				fmt.Fprintf(writer, "\"%p\" [label=\"%s\", style=filled];\n", mark, mark)
+				fmt.Fprintf(writer, "\"%s\" [label=\"%s\", style=filled];\n", mg.dotName(labels, mark), mark)
 			}
 		case GENGroup:
 			if mg.imark == mark {
-				fmt.Fprintf(writer, "\"%p\" [label=\"%s\", peripheries=2];\n", mark, mark)
+				fmt.Fprintf(writer, "\"%s\" [label=\"%s\", peripheries=2];\n", mg.dotName(labels, mark), mark)
 			} else {
-				fmt.Fprintf(writer, "\"%p\" [label=\"%s\"];\n", mark, mark)
+				fmt.Fprintf(writer, "\"%s\" [label=\"%s\"];\n", mg.dotName(labels, mark), mark)
 			}
 		case ABSGroup:
 			if mg.imark == mark {
-				fmt.Fprintf(writer, "\"%p\" [label=\"%s\", peripheries=2];\n", mark, mark)
+				fmt.Fprintf(writer, "\"%s\" [label=\"%s\", peripheries=2];\n", mg.dotName(labels, mark), mark)
 			} else {
-				fmt.Fprintf(writer, "\"%p\" [label=\"%s\"];\n", mark, mark)
+				fmt.Fprintf(writer, "\"%s\" [label=\"%s\"];\n", mg.dotName(labels, mark), mark)
 			}
 		default:
 		}
 	}
 	for _, link := range mg.links {
-		fmt.Fprintf(writer, "\"%p\"->\"%p\" [label=\"%s\"];\n", link.src, link.dest, link.tr.getTrans().label)
+		fmt.Fprintf(writer, "\"%s\"->\"%s\" [label=\"%s\"];\n", mg.dotName(labels, link.src), mg.dotName(labels, link.dest), link.tr.getTrans().label)
 	}
 	fmt.Fprintf(writer, "}\n")
 }
 
 func (mg *MarkingGraph) ToMarkDotWithLabelAndGroup(writer io.Writer) {
+	labels := mg.GroupLabels()
 	fmt.Fprintf(writer, "digraph { layout=dot; overlap=false; splines=true;\n")
 	for _, mark := range mg.marks {
 		switch markgroup := mark.group; markgroup.gtype {
 		case IMMGroup:
-			fmt.Fprintf(writer, "\"%p\" [label=\"%s\n%s\", style=filled];\n", mark, mark, markgroup.gv)
+			fmt.Fprintf(writer, "\"%s\" [label=\"%s\n%s\", style=filled];\n", mg.dotName(labels, mark), mark, markgroup.gv)
 		case GENGroup:
-			fmt.Fprintf(writer, "\"%p\" [label=\"%s\n%s\"];\n", mark, mark, markgroup.gv)
+			fmt.Fprintf(writer, "\"%s\" [label=\"%s\n%s\"];\n", mg.dotName(labels, mark), mark, markgroup.gv)
 		case ABSGroup:
-			fmt.Fprintf(writer, "\"%p\" [label=\"%s\n%s\"];\n", mark, mark, markgroup.gv)
+			fmt.Fprintf(writer, "\"%s\" [label=\"%s\n%s\"];\n", mg.dotName(labels, mark), mark, markgroup.gv)
 		default:
 		}
 	}
 	for _, link := range mg.links {
-		fmt.Fprintf(writer, "\"%p\"->\"%p\" [label=\"%s\"];\n", link.src, link.dest, link.tr.getTrans().label)
+		fmt.Fprintf(writer, "\"%s\"->\"%s\" [label=\"%s\"];\n", mg.dotName(labels, link.src), mg.dotName(labels, link.dest), link.tr.getTrans().label)
 	}
 	fmt.Fprintf(writer, "}\n")
 }
@@ -403,16 +414,16 @@ func (mg *MarkingGraph) ToGroupMarkDot(writer io.Writer) {
 	for _, g := range mg.groups {
 		switch g.gtype {
 		case IMMGroup:
-			fmt.Fprintf(writer, "\"%p\" [label=\"%s\", style=filled];\n", g, label1[g])
+			fmt.Fprintf(writer, "\"%s\" [label=\"%s\", style=filled];\n", label1[g], label1[g])
 		case GENGroup:
-			fmt.Fprintf(writer, "\"%p\" [label=\"%s\"];\n", g, label1[g])
+			fmt.Fprintf(writer, "\"%s\" [label=\"%s\"];\n", label1[g], label1[g])
 		case ABSGroup:
-			fmt.Fprintf(writer, "\"%p\" [label=\"%s\"];\n", g, label1[g])
+			fmt.Fprintf(writer, "\"%s\" [label=\"%s\"];\n", label1[g], label1[g])
 		default:
 		}
 	}
 	for _, link := range mg.grouplinks {
-		fmt.Fprintf(writer, "\"%p\"->\"%p\" [label=\"%s\"];\n", link.src, link.dest, label2[link])
+		fmt.Fprintf(writer, "\"%s\"->\"%s\" [label=\"%s\"];\n", label1[link.src], label1[link.dest], label2[link])
 	}
 	fmt.Fprintf(writer, "}\n")
 }

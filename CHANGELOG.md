@@ -1,3 +1,27 @@
+# gospn 0.29.0
+
+- **The DOT output is reproducible.** `gospn view -o`, `gospn mark -m` and `gospn mark -g`
+  named their nodes by the address of the marking or the place (`"0x40002ab800"`), so
+  drawing the same net twice gave two different files: two runs could not be diffed, and
+  a generated diagram under version control changed every line every time. Nodes are now
+  named by what they are --
+
+  ```
+  "G0_0" [label="[6,0,1,0,0]", peripheries=2];     a marking: its group and its row
+  "p_Pn" [shape=circle,label="Pn"];                a place, by its label
+  "t_Trebuild"->"p_Pn" [label=""];                 a transition, likewise
+  ```
+
+  -- and the same net gives the same bytes. The labels, shapes and edges are unchanged.
+
+- **`pkg/petrinet/markinggraph_test.go` asserts something.** It had 28 `fmt.Println`
+  calls and no `t.Error`: it built marking graphs, drew them and checked none of it --
+  the same state the parser's tests were in before 0.23.0. It now pins the state and
+  group counts and the matrix names for the EXP, IMM and GEN forms of one net, that an
+  initial vector marks exactly one state, and that all four DOT writers are reproducible
+  and emit no edge to an undeclared node. `net_test.go` does the same for `ToPNDot`, and
+  the CLI test checks `-m`, `-g` and `view` at the level a user sees.
+
 # gospn 0.28.0
 
 - **`MATLABBuffer`'s methods no longer borrow the names of interfaces they do not
