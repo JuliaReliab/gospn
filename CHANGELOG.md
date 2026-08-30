@@ -1,3 +1,25 @@
+# gospn 0.30.0
+
+- **The random number generator is checked against the reference implementation.**
+  `pkg/mt/mt64_test.go` printed a thousand numbers and asserted nothing, which for a
+  generator means nothing was checked at all: the simulation goldens pin what gospn
+  produces, not whether the generator is the one it claims to be, so a wrong
+  `InitByArray` would make every simulation quietly wrong **and move no golden** -- the
+  goldens would move with it.
+
+  The test now compares against Matsumoto and Nishimura's own C program, whose `main`
+  seeds with `init_by_array64({0x12345, 0x23456, 0x34567, 0x45678})` and prints 1000
+  `genrand64_int64` values followed by 1000 `genrand64_real2` values, from one continuous
+  stream. All 2000 match. `Seed` (`init_genrand64`), which that `main` never calls and
+  `gospn test -s` uses, is checked the same way against a run with only `main` changed.
+
+  The vectors are in `pkg/mt/testdata/`, regenerated from the source rather than
+  downloaded -- the published `mt19937-64.out.txt` is a 404 -- with the commands in
+  `testdata/README.md`. Checked by mutation: changing `19650218` to `19650219` or a
+  tempering shift from 43 to 42 fails the test at the first value.
+
+  This was the last test file in `pkg/` that asserted nothing.
+
 # gospn 0.29.0
 
 - **The DOT output is reproducible.** `gospn view -o`, `gospn mark -m` and `gospn mark -g`

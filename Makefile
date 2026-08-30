@@ -1,4 +1,4 @@
-GOSPN_VERSION = 0.29.0
+GOSPN_VERSION = 0.30.0
 GOSPN_LDFLAGS = -X main.version=$(GOSPN_VERSION)
 
 deps:
