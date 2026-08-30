@@ -154,6 +154,7 @@ func TestWriteRejectsDuplicateNames(t *testing.T) {
 func TestDenseMatrixIsFortranOrdered(t *testing.T) {
 	r := &result.Result{}
 	r.AddDenseMatrix("path_state", 3, 2, []int32{0, 1, 2, 3, 4, 5})
+	r.AddDenseMatrix("one_row", 1, 3, []int32{0, 1, 2})
 	r.AddDense("path_time", []float64{0, 1, 2})
 	z := write(t, r)
 
@@ -166,6 +167,12 @@ func TestDenseMatrixIsFortranOrdered(t *testing.T) {
 	}
 	if len(data) != 6*4 {
 		t.Errorf("path_state: %d bytes, want %d", len(data), 6*4)
+	}
+
+	// A matrix with one row keeps both dimensions; a 1-by-n vector does not.
+	hdr, _ = readMember(t, z, "one_row")
+	if !strings.Contains(hdr, "'shape': (1,3,)") {
+		t.Errorf("one_row: shape missing from %q", hdr)
 	}
 
 	// A vector is not column-major, and saying it is would be a lie a reader can see.

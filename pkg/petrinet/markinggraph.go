@@ -634,13 +634,38 @@ func (mg *MarkingGraph) TransLabels() map[GroupTrans]string {
 	return labels
 }
 
+// Net is the net the graph was built from. StateMarkings is indexed by its
+// PlaceLabels order, and a caller outside the package needs that order to read it.
+func (mg *MarkingGraph) Net() *Net { return mg.net }
+
+// StateMarkings is which marking each row of a group's matrices is. The columns are
+// places, in Net.PlaceLabels order.
+//
+// A result file used to carry the matrices and nothing that said what a row meant: the
+// markings went to a separate text file, written only when -s was given. Anything
+// reading the matrices back -- a cross-check against another implementation, most of
+// all -- has to be able to key a row on its marking.
+func (mg *MarkingGraph) StateMarkings() map[*Group][][]MarkInt {
+	marks := make(map[*Group][][]MarkInt, len(mg.groups))
+	for _, g := range mg.groups {
+		tmp := make([][]MarkInt, len(mg.groupToMark[g]))
+		for k, m := range mg.groupToMark[g] {
+			// A copy: toSlice hands back the interned marking's own slice, and this
+			// leaves the package.
+			tmp[k] = append([]MarkInt(nil), m.toSlice()...)
+		}
+		marks[g] = tmp
+	}
+	return marks
+}
+
 func (mg *MarkingGraph) StateLabels() map[*Group][]string {
 	labels := make(map[*Group][]string)
-	for _, g := range mg.groups {
-		tmp := make([]string, len(mg.groupToMark[g]))
-		for k, m := range mg.groupToMark[g] {
+	for g, marks := range mg.StateMarkings() {
+		tmp := make([]string, len(marks))
+		for k, m := range marks {
 			str := make([]string, 0)
-			for i, n := range m.toSlice() {
+			for i, n := range m {
 				if n > 0 {
 					str = append(str, fmt.Sprintf("%s:%d", mg.net.placelist[i].label, n))
 				}
